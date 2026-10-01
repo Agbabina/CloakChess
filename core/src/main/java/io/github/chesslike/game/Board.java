@@ -7,8 +7,8 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 public class Board {
     private float boardX;
     private float boardY;
-    private static final int SIZE = 5;
-    private static final int TILE_SIZE = 100;
+    public static final int SIZE = 5;
+    public static final float TILE_SIZE = 100f;
 
     private final Texture darkTile;
     private final Texture lightTile;
@@ -21,26 +21,24 @@ public class Board {
         lightTile = new Texture("square gray light _png_256px.png");
     }
 
+    public int getSize() {
+        return SIZE;
+    }
+
     public void render() {
         batch.begin();
-        boardX=(Gdx.graphics.getWidth()- SIZE*TILE_SIZE)/ 2f;
-        boardY= (Gdx.graphics.getHeight()-SIZE*TILE_SIZE)/2F;
+        boardX = (Gdx.graphics.getWidth() - SIZE * TILE_SIZE) / 2f;
+        boardY = (Gdx.graphics.getHeight() - SIZE * TILE_SIZE) / 2f;
 
         for (int y = 0; y < SIZE; y++) {
             for (int x = 0; x < SIZE; x++) {
 
-                Texture tile;
-
-                if ((x + y) % 2 == 0) {
-                    tile = lightTile;
-                } else {
-                    tile = darkTile;
-                }
+                Texture tile = ((x + y) % 2 == 0) ? lightTile : darkTile;
 
                 batch.draw(
                     tile,
-                    boardX+x* TILE_SIZE,
-                    boardY+y * TILE_SIZE,
+                    boardX + x * TILE_SIZE,
+                    boardY + y * TILE_SIZE,
                     TILE_SIZE,
                     TILE_SIZE
                 );
@@ -51,7 +49,7 @@ public class Board {
     }
 
     public void dispose() {
-        darkTile.dispose();
-        lightTile.dispose();
+        if (darkTile != null) darkTile.dispose();
+        if (lightTile != null) lightTile.dispose();
     }
 }

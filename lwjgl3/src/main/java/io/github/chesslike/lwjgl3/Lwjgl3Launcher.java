@@ -1,3 +1,4 @@
+
 package io.github.chesslike.lwjgl3;
 
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
@@ -33,16 +34,20 @@ public class Lwjgl3Launcher {
 
         configuration.useVsync(true);
 
-        configuration.setForegroundFPS(
-            Lwjgl3ApplicationConfiguration
-                .getDisplayMode()
-                .refreshRate + 1
+        configuration.setForegroundFPS(60);
+
+        // -----------------------------------------
+        // WINDOW
+        // -----------------------------------------
+
+        configuration.setWindowedMode(
+            1280,
+            720
         );
 
-        configuration.setFullscreenMode(
-            Lwjgl3ApplicationConfiguration.getDisplayMode()
-        );
-
+        // -----------------------------------------
+        // ICON
+        // -----------------------------------------
 
         configuration.setWindowIcon(
             "libgdx128.png",

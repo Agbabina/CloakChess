@@ -1,4 +1,4 @@
-package io.github.chesslike.android;
+package io.github.some_example_name.android;
 
 import android.os.Bundle;
 

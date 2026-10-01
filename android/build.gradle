@@ -1,4 +1,3 @@
-
 buildscript {
   repositories {
     mavenCentral()
@@ -7,10 +6,13 @@ buildscript {
 }
 apply plugin: 'com.android.application'
 
-
 android {
-  namespace = "io.github.some_example_name"
-  compileSdk = 35
+  // 1. Updated namespace to match your source files perfectly
+  namespace = "io.github.chesslike.android"
+
+  // 2. Upgraded to 36 to satisfy the modern AndroidX metadata requirements
+  compileSdk = 36
+
   sourceSets {
     main {
       manifest.srcFile 'AndroidManifest.xml'
@@ -23,15 +25,16 @@ android {
     }
   }
   packagingOptions {
-		resources {
-			excludes += ['META-INF/robovm/ios/robovm.xml', 'META-INF/DEPENDENCIES.txt', 'META-INF/DEPENDENCIES',
+    resources {
+      excludes += ['META-INF/robovm/ios/robovm.xml', 'META-INF/DEPENDENCIES.txt', 'META-INF/DEPENDENCIES',
                    'META-INF/dependencies.txt', '**/*.gwt.xml']
-			pickFirsts += ['META-INF/LICENSE.txt', 'META-INF/LICENSE', 'META-INF/license.txt', 'META-INF/LGPL2.1',
+      pickFirsts += ['META-INF/LICENSE.txt', 'META-INF/LICENSE', 'META-INF/license.txt', 'META-INF/LGPL2.1',
                      'META-INF/NOTICE.txt', 'META-INF/NOTICE', 'META-INF/notice.txt']
-		}
+    }
   }
   defaultConfig {
-    applicationId 'io.github.some_example_name'
+    // 3. Updated application ID to match your true package identity
+    applicationId 'io.github.chesslike.android'
     minSdkVersion 21
     targetSdkVersion 35
     versionCode 1
@@ -51,7 +54,6 @@ android {
 }
 
 repositories {
-  // needed for AAPT2, may be needed for other tools
   google()
 }
 
@@ -61,18 +63,19 @@ dependencies {
   coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
   implementation "com.badlogicgames.gdx-controllers:gdx-controllers-android:$gdxControllersVersion"
   implementation "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
+  implementation "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
   implementation project(':core')
 
   natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-arm64-v8a"
   natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi-v7a"
   natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86"
   natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86_64"
-
+  natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-armeabi-v7a"
+  natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-arm64-v8a"
+  natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-x86"
+  natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-x86_64"
 }
 
-// Called every time gradle gets executed, takes the native dependencies of
-// the natives configuration, and extracts them to the proper libs/ folders
-// so they get packed with the APK.
 tasks.register('copyAndroidNatives') {
   doFirst {
     file("libs/armeabi-v7a/").mkdirs()
@@ -120,7 +123,11 @@ tasks.register('run', Exec) {
   }
 
   def adb = path + "/platform-tools/adb"
-  commandLine "$adb", 'shell', 'am', 'start', '-n', 'io.github.some_example_name/io.github.some_example_name.android.AndroidLauncher'
+  // 4. Fixed ADB execution path to fire your actual project launcher class
+  commandLine "$adb", 'shell', 'am', 'start', '-n', 'io.github.chesslike.android/io.github.chesslike.android.AndroidLauncher'
 }
 
-eclipse.project.name = appName + "-android"
+// 5. Safe handling for multi-project script variables
+if (project.hasProperty('appName')) {
+  eclipse.project.name = appName + "-android"
+}

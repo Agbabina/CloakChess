@@ -19,7 +19,7 @@ public class EnemyGenerator {
      *
      * difficulty controls how nasty the room can become.
      */
-    public Array<Enemy> generateEnemies(int difficulty) {
+    public Array<Enemy> generateEnemies(int difficulty, int playerX, int playerY) {
 
         Array<Enemy> enemies = new Array<>();
 
@@ -27,10 +27,7 @@ public class EnemyGenerator {
 
         int attempts = 0;
 
-        while (
-            enemies.size < enemyCount
-                && attempts < 100
-        ) {
+        while (enemies.size < enemyCount && attempts < 100) {
 
             attempts++;
 
@@ -38,7 +35,7 @@ public class EnemyGenerator {
             int y = random.nextInt(BOARD_SIZE);
 
             // Keep enemies away from the player's starting area
-            if (isTooCloseToPlayer(x, y)) {
+            if (isTooCloseToPlayer(x, y, playerX, playerY)) {
                 continue;
             }
 
@@ -47,15 +44,9 @@ public class EnemyGenerator {
                 continue;
             }
 
-            Card.MovementType type =
-                generateEnemyType(difficulty);
+            Card.MovementType type = generateEnemyType(difficulty);
 
-            Enemy enemy =
-                createEnemy(
-                    x,
-                    y,
-                    type
-                );
+            Enemy enemy = createEnemy(x, y, type, difficulty);
 
             enemies.add(enemy);
         }
@@ -63,123 +54,73 @@ public class EnemyGenerator {
         return enemies;
     }
 
+
     // =========================================
     // ENEMY COUNT
     // =========================================
 
-    private int getEnemyCount(
-        int difficulty
-    ) {
+    private int getEnemyCount(int difficulty) {
 
-        int max =
-            Math.min(
-                MAX_ENEMIES + difficulty / 2,
-                6
-            );
+        int max = Math.min(MAX_ENEMIES + difficulty / 2, 6);
 
-        return MIN_ENEMIES
-            + random.nextInt(
-            max - MIN_ENEMIES + 1
-        );
+        return MIN_ENEMIES + random.nextInt(max - MIN_ENEMIES + 1);
     }
 
     // =========================================
     // ENEMY TYPE
     // =========================================
 
-    private Card.MovementType generateEnemyType(
-        int difficulty
-    ) {
+    private Card.MovementType generateEnemyType(int difficulty) {
 
         int roll = random.nextInt(100);
 
         // Early rooms are mostly simple pieces
-
         if (difficulty <= 1) {
 
-            if (roll < 50) {
-                return Card.MovementType.PAWN;
-            }
-
-            if (roll < 75) {
-                return Card.MovementType.KNIGHT;
-            }
-
+            if (roll < 50) return Card.MovementType.PAWN;
+            if (roll < 75) return Card.MovementType.KNIGHT;
             return Card.MovementType.BISHOP;
         }
 
-        // Medium difficulty
+        // Medium difficulty (rooms 2-4)
+        if (difficulty <= 4) {
 
-        if (difficulty <= 3) {
-
-            if (roll < 30) {
-                return Card.MovementType.PAWN;
-            }
-
-            if (roll < 55) {
-                return Card.MovementType.KNIGHT;
-            }
-
-            if (roll < 75) {
-                return Card.MovementType.BISHOP;
-            }
-
-            if (roll < 90) {
-                return Card.MovementType.ROOK;
-            }
-
-            return Card.MovementType.QUEEN;
+            if (roll < 20) return Card.MovementType.PAWN;
+            if (roll < 40) return Card.MovementType.MADROOK;
+            if (roll < 60) return Card.MovementType.BISHOP;
+            if (roll < 80) return Card.MovementType.ROOK;
+            return Card.MovementType.JESTER;
         }
 
-        // Hard rooms
-
-        if (roll < 20) {
-            return Card.MovementType.PAWN;
-        }
-
-        if (roll < 40) {
-            return Card.MovementType.KNIGHT;
-        }
-
-        if (roll < 60) {
-            return Card.MovementType.BISHOP;
-        }
-
-        if (roll < 80) {
-            return Card.MovementType.ROOK;
-        }
-
-        return Card.MovementType.QUEEN;
+        // High difficulty (Room 5+)
+        if (roll < 15) return Card.MovementType.PAWN;
+        if (roll < 35) return Card.MovementType.BLINKER;
+        if (roll < 55) return Card.MovementType.MADROOK;
+        if (roll < 75) return Card.MovementType.CHAMELEON;
+        if (roll < 90) return Card.MovementType.JESTER;
+        return Card.MovementType.PAWN;
     }
 
     // =========================================
     // CREATE ENEMY
     // =========================================
 
-    private Enemy createEnemy(
-        int x,
-        int y,
-        Card.MovementType type
-    ) {
+    private Enemy createEnemy(int x, int y, Card.MovementType type, int room) {
 
-        String texture =
-            getTexture(type);
+        String texture = getTexture(type);
 
-        return new Enemy(
-            x,
-            y,
-            type,
-            texture
-        );
+        // Rooms 6-10 = 2 HP, rooms 11+ roll 3 or 4.
+        // The chance of 4 HP climbs 10% per room after room 10.
+        float chanceOfFour = Math.max(0f, Math.min(1f, (room - 10) / 10f));
+
+        return new Enemy(x, y, type, texture, room, chanceOfFour);
     }
 
     // =========================================
     // TEXTURE
     // =========================================
 
-    private String getTexture(
-        Card.MovementType type
-    ) {
+    private String getTexture(Card.MovementType type) {
 
         switch (type) {
 
@@ -198,6 +139,18 @@ public class EnemyGenerator {
             case PAWN:
                 return "b_pawn_png_256px.png";
 
+            case JESTER:
+                return "jester.png";
+
+            case BLINKER:
+                return "blinker.png";
+
+            case MADROOK:
+                return "mad_rook.png";
+
+            case CHAMELEON:
+                return "chameleon.png";
+
             default:
                 return "b_pawn_png_256px.png";
         }
@@ -207,22 +160,17 @@ public class EnemyGenerator {
     // POSITION CHECK
     // =========================================
 
-    private boolean isOccupied(
-        Array<Enemy> enemies,
-        int x,
-        int y
-    ) {
+    private boolean isOccupied(Array<Enemy> enemies, int x, int y) {
 
-        for (Enemy enemy : enemies) {
+        for (int i = 0; i < enemies.size; i++) {
+
+            Enemy enemy = enemies.get(i);
 
             if (!enemy.isAlive()) {
                 continue;
             }
 
-            if (
-                enemy.getX() == x
-                    && enemy.getY() == y
-            ) {
+            if (enemy.getX() == x && enemy.getY() == y) {
                 return true;
             }
         }
@@ -234,18 +182,9 @@ public class EnemyGenerator {
     // PLAYER DISTANCE
     // =========================================
 
-    private boolean isTooCloseToPlayer(
-        int x,
-        int y
-    ) {
+    private boolean isTooCloseToPlayer(int x, int y, int playerX, int playerY) {
 
-        // Player starts around the center.
-        int playerX = 2;
-        int playerY = 2;
-
-        int distance =
-            Math.abs(x - playerX)
-                + Math.abs(y - playerY);
+        int distance = Math.abs(x - playerX) + Math.abs(y - playerY);
 
         return distance <= 1;
     }

@@ -1,18 +1,15 @@
 package io.github.chesslike.game;
 
-public class RookRules implements MovementRules {
-
+public class DashRules implements MovementRules{
     @Override
-    public boolean isValidMove(int startX, int startY, int targetX, int targetY, int boardSize) {
-        boolean sameColumn = startX == targetX;
-        boolean sameRow = startY == targetY;
+    public boolean isValidMove(int startX,int startY, int targetX, int targetY, int boardSize){
+        boolean sameRow=startY==targetY;
         boolean actuallyMoved = startX != targetX || startY != targetY;
-
-        return (sameColumn || sameRow) && actuallyMoved;
+        return (sameRow) && actuallyMoved;
     }
-
     @Override
     public boolean isValidMove(int startX, int startY, int targetX, int targetY, Board board) {
         return isValidMove(startX, startY, targetX, targetY, board.getSize());
     }
+
 }

@@ -18,13 +18,73 @@ public class Player {
 
     private boolean selected = false;
 
-    public Player(int x, int y) {
+    // =========================================
+    // HEALTH
+    // =========================================
 
+    private int maxHealth = 5;
+    private int health = 5;
+
+    // =========================================
+    // ARROWS
+    // =========================================
+
+    private static final int DEFAULT_ARROWS = 2;
+    private int arrowsRemaining = DEFAULT_ARROWS;
+
+    public Player(int x, int y) {
         this.x = x;
         this.y = y;
 
-        texture =
-            new Texture("w_king_png_256px.png");
+        texture = new Texture("w_king_png_256px.png");
+    }
+
+    // =========================================
+    // HEALTH
+    // =========================================
+
+    public int getHealth() {
+        return health;
+    }
+
+    public int getMaxHealth() {
+        return maxHealth;
+    }
+
+    public void setMaxHealth(int maxHealth) {
+        this.maxHealth = Math.max(1, maxHealth);
+        health = Math.min(health, this.maxHealth);
+    }
+
+    public void increaseMaxHealth(int amount) {
+        maxHealth = Math.max(1, maxHealth + amount);
+        health = Math.min(health, maxHealth);
+    }
+
+    public void heal(int amount) {
+        if (amount <= 0) {
+            return;
+        }
+
+        health = Math.min(maxHealth, health + amount);
+    }
+
+    public boolean takeDamage(int amount) {
+        if (amount <= 0) {
+            return false;
+        }
+
+        health = Math.max(0, health - amount);
+
+        return health <= 0;
+    }
+
+    public boolean isDead() {
+        return health <= 0;
+    }
+
+    public void resetHealth() {
+        health = maxHealth;
     }
 
     // =========================================
@@ -32,19 +92,11 @@ public class Player {
     // =========================================
 
     public static float getBoardX() {
-
-        return (
-            Gdx.graphics.getWidth()
-                - BOARD_SIZE * TILE_SIZE
-        ) / 2f;
+        return (Gdx.graphics.getWidth() - BOARD_SIZE * TILE_SIZE) / 2f;
     }
 
     public static float getBoardY() {
-
-        return (
-            Gdx.graphics.getHeight()
-                - BOARD_SIZE * TILE_SIZE
-        ) / 2f;
+        return (Gdx.graphics.getHeight() - BOARD_SIZE * TILE_SIZE) / 2f;
     }
 
     // =========================================
@@ -52,48 +104,31 @@ public class Player {
     // =========================================
 
     public void render(SpriteBatch batch) {
-
         float boardX = getBoardX();
         float boardY = getBoardY();
 
         float pieceSize = TILE_SIZE * 0.90f;
-
-        float offset =
-            (TILE_SIZE - pieceSize) / 2f;
+        float offset = (TILE_SIZE - pieceSize) / 2f;
 
         batch.draw(
             texture,
-
-            boardX
-                + x * TILE_SIZE
-                + offset,
-
-            boardY
-                + y * TILE_SIZE
-                + offset,
-
+            boardX + x * TILE_SIZE + offset,
+            boardY + y * TILE_SIZE + offset,
             pieceSize,
             pieceSize
         );
     }
 
     // =========================================
-    // CLICK
+    // CLICK DETECTION
     // =========================================
 
-    public boolean isClicked(
-        float screenX,
-        float screenY
-    ) {
-
+    public boolean isClicked(float screenX, float screenY) {
         float boardX = getBoardX();
         float boardY = getBoardY();
 
-        float playerX =
-            boardX + x * TILE_SIZE;
-
-        float playerY =
-            boardY + y * TILE_SIZE;
+        float playerX = boardX + x * TILE_SIZE;
+        float playerY = boardY + y * TILE_SIZE;
 
         return screenX >= playerX
             && screenX <= playerX + TILE_SIZE
@@ -105,9 +140,7 @@ public class Player {
     // SELECTION
     // =========================================
 
-    public void setSelected(
-        boolean selected
-    ) {
+    public void setSelected(boolean selected) {
         this.selected = selected;
     }
 
@@ -116,7 +149,7 @@ public class Player {
     }
 
     // =========================================
-    // POSITION
+    // POSITION MANAGEMENT
     // =========================================
 
     public int getX() {
@@ -125,6 +158,11 @@ public class Player {
 
     public int getY() {
         return y;
+    }
+
+    public void setPosition(int x, int y) {
+        this.x = x;
+        this.y = y;
     }
 
     // =========================================
@@ -136,11 +174,7 @@ public class Player {
         int targetY,
         MovementRules rules
     ) {
-
-        if (!isInsideBoard(
-            targetX,
-            targetY
-        )) {
+        if (!isInsideBoard(targetX, targetY)) {
             return false;
         }
 
@@ -153,17 +187,32 @@ public class Player {
         );
     }
 
+    public boolean isValidMove(
+        int targetX,
+        int targetY,
+        MovementRules rules,
+        Board board
+    ) {
+        if (!isInsideBoard(targetX, targetY)) {
+            return false;
+        }
+
+        return rules.isValidMove(
+            x,
+            y,
+            targetX,
+            targetY,
+            board.getSize()
+        );
+    }
+
     public boolean moveTo(
         int targetX,
         int targetY,
-        MovementRules rules
+        MovementRules rules,
+        Board board
     ) {
-
-        if (!isValidMove(
-            targetX,
-            targetY,
-            rules
-        )) {
+        if (!isValidMove(targetX, targetY, rules, board)) {
             return false;
         }
 
@@ -174,24 +223,40 @@ public class Player {
     }
 
     // =========================================
-    // LEGAL MOVES
+    // LEGAL MOVES RENDERING
     // =========================================
 
     public void renderLegalMoves(
         ShapeRenderer shape,
-        MovementRules rules
+        Card activeCard,
+        Board board
     ) {
+        if (!selected || activeCard == null) {
+            return;
+        }
 
+        if (activeCard.hasTeleportationInfusion()) {
+            renderTeleportationMoves(shape);
+        } else {
+            renderLegalMoves(
+                shape,
+                activeCard.getMovementRules(),
+                board
+            );
+        }
+    }
+
+    public void renderLegalMoves(
+        ShapeRenderer shape,
+        MovementRules rules,
+        Board board
+    ) {
         if (!selected) {
             return;
         }
 
         float boardX = getBoardX();
         float boardY = getBoardY();
-
-        // -----------------------------------------
-        // DESTINATION SQUARES
-        // -----------------------------------------
 
         shape.setColor(
             new Color(
@@ -202,43 +267,24 @@ public class Player {
             )
         );
 
-        for (
-            int targetX = 0;
-            targetX < BOARD_SIZE;
-            targetX++
-        ) {
-
-            for (
-                int targetY = 0;
-                targetY < BOARD_SIZE;
-                targetY++
-            ) {
+        for (int targetX = 0; targetX < BOARD_SIZE; targetX++) {
+            for (int targetY = 0; targetY < BOARD_SIZE; targetY++) {
 
                 if (isValidMove(
                     targetX,
                     targetY,
-                    rules
+                    rules,
+                    board
                 )) {
-
                     shape.rect(
-                        boardX
-                            + targetX * TILE_SIZE
-                            + 15,
-
-                        boardY
-                            + targetY * TILE_SIZE
-                            + 15,
-
+                        boardX + targetX * TILE_SIZE + 15,
+                        boardY + targetY * TILE_SIZE + 15,
                         TILE_SIZE - 30,
                         TILE_SIZE - 30
                     );
                 }
             }
         }
-
-        // -----------------------------------------
-        // SELECTED BORDER
-        // -----------------------------------------
 
         shape.setColor(
             new Color(
@@ -250,17 +296,155 @@ public class Player {
         );
 
         shape.rect(
-            boardX
-                + x * TILE_SIZE
-                + 4,
-
-            boardY
-                + y * TILE_SIZE
-                + 4,
-
+            boardX + x * TILE_SIZE + 4,
+            boardY + y * TILE_SIZE + 4,
             TILE_SIZE - 8,
             TILE_SIZE - 8
         );
+    }
+
+    public void renderTeleportationMoves(
+        ShapeRenderer shape
+    ) {
+        if (!selected) {
+            return;
+        }
+
+        float boardX = getBoardX();
+        float boardY = getBoardY();
+
+        shape.setColor(
+            new Color(
+                0.70f,
+                0.20f,
+                1f,
+                0.45f
+            )
+        );
+
+        for (int targetX = 0; targetX < BOARD_SIZE; targetX++) {
+            for (int targetY = 0; targetY < BOARD_SIZE; targetY++) {
+
+                if (targetX != x || targetY != y) {
+                    shape.rect(
+                        boardX + targetX * TILE_SIZE + 15,
+                        boardY + targetY * TILE_SIZE + 15,
+                        TILE_SIZE - 30,
+                        TILE_SIZE - 30
+                    );
+                }
+            }
+        }
+
+        shape.setColor(
+            new Color(
+                1f,
+                0.75f,
+                0.15f,
+                1f
+            )
+        );
+
+        shape.rect(
+            boardX + x * TILE_SIZE + 4,
+            boardY + y * TILE_SIZE + 4,
+            TILE_SIZE - 8,
+            TILE_SIZE - 8
+        );
+    }
+
+    // =========================================
+    // ARROW SHOOTING
+    // =========================================
+
+    public boolean hasArrows() {
+        return arrowsRemaining > 0;
+    }
+
+    public int getArrowsRemaining() {
+        return arrowsRemaining;
+    }
+
+    public void useArrow() {
+        if (arrowsRemaining > 0) {
+            arrowsRemaining--;
+        }
+    }
+
+    public void resetArrows() {
+        arrowsRemaining = DEFAULT_ARROWS;
+    }
+
+    public boolean isValidArrowTarget(
+        int targetX,
+        int targetY
+    ) {
+        if (!isInsideBoard(targetX, targetY)) {
+            return false;
+        }
+
+        if (targetX == x && targetY == y) {
+            return false;
+        }
+
+        boolean straight =
+            targetX == x || targetY == y;
+
+        boolean diagonal =
+            Math.abs(targetX - x)
+                == Math.abs(targetY - y);
+
+        return straight || diagonal;
+    }
+
+    public void renderArrowRange(
+        ShapeRenderer shape
+    ) {
+        if (!selected) {
+            return;
+        }
+
+        float boardX = getBoardX();
+        float boardY = getBoardY();
+
+        shape.setColor(
+            new Color(
+                1f,
+                0.35f,
+                0.25f,
+                0.45f
+            )
+        );
+
+        int[][] directions = {
+            {1, 0},
+            {-1, 0},
+            {0, 1},
+            {0, -1},
+            {1, 1},
+            {1, -1},
+            {-1, 1},
+            {-1, -1}
+        };
+
+        for (int[] dir : directions) {
+
+            int tx = x + dir[0];
+            int ty = y + dir[1];
+
+            while (isInsideBoard(tx, ty)) {
+
+                shape.rect(
+                    boardX + tx * TILE_SIZE + 15,
+                    boardY + ty * TILE_SIZE + 15,
+                    TILE_SIZE - 30,
+                    TILE_SIZE - 30
+                );
+
+                tx += dir[0];
+                ty += dir[1];
+            }
+        }
     }
 
     // =========================================
@@ -271,7 +455,6 @@ public class Player {
         int targetX,
         int targetY
     ) {
-
         return targetX >= 0
             && targetX < BOARD_SIZE
             && targetY >= 0
@@ -283,6 +466,8 @@ public class Player {
     // =========================================
 
     public void dispose() {
-        texture.dispose();
+        if (texture != null) {
+            texture.dispose();
+        }
     }
 }
