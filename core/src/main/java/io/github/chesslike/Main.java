@@ -4883,6 +4883,7 @@ public class Main extends Game {
     }
 
     private void playCardWithModifier(Card card, boolean captured) {
+        if (blitzMode && blitzManager != null) blitzManager.cardPlayed();
         CardModifier modifier = cardModifiers.get(card);
         boolean echo = card.hasEcho() && random.nextFloat() < 0.35f;
         boolean free = (modifier == CardModifier.FRUGAL && random.nextBoolean()) || echo;
@@ -4960,6 +4961,7 @@ public class Main extends Game {
             return;
         }
         mana -= cost;
+        if (blitzMode && blitzManager != null) blitzManager.spellCast();
 
         if (spell == Spell.CLOAK) {
             invisibleTurns = 2;
