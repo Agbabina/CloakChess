@@ -401,6 +401,16 @@ public class Main extends Game {
             String name = c.name().toLowerCase();
             loadIcon(name, name);
         }
+
+        // Capture-curse icons
+        loadIcon("ARROWPROOF", "arrowproof");
+        loadIcon("PAWNLOCK", "pawnlock");
+        loadIcon("KNIGHTLOCK", "knightlock");
+        loadIcon("BISHOPLOCK", "bishoplock");
+        loadIcon("ROOKLOCK", "rooklock");
+        loadIcon("QUEENLOCK", "queenlock");
+        loadIcon("DASHLOCK", "dashlock");
+        loadIcon("ASSASSINATIONPROOF", "veiled");
     }
 
     private void loadIcon(String key, String file) {
@@ -719,7 +729,7 @@ public class Main extends Game {
             new FreeTypeFontGenerator.FreeTypeFontParameter();
 
         // Generate the glyphs large instead of enlarging a tiny bitmap font.
-        parameter.size = 32;
+        parameter.size = 26;
         parameter.minFilter = Texture.TextureFilter.Nearest;
         parameter.magFilter = Texture.TextureFilter.Nearest;
 
@@ -2050,7 +2060,7 @@ public class Main extends Game {
                     startY - spacing * index,
                     r,
                     new Color(.95f, .45f, .25f, 1f),
-                    captureCurse.getShortLabel(),
+                    captureCurseIconKey(captureCurse),
                     0
                 );
                 index++;
@@ -2112,6 +2122,20 @@ public class Main extends Game {
         }
 
         batch.end();
+    }
+
+    private String captureCurseIconKey(CaptureCurse curse) {
+        switch (curse) {
+            case ARROWPROOF: return "ARROWPROOF";
+            case PAWNLOCK: return "PAWNLOCK";
+            case KNIGHTLOCK: return "KNIGHTLOCK";
+            case BISHOPLOCK: return "BISHOPLOCK";
+            case ROOKLOCK: return "ROOKLOCK";
+            case QUEENLOCK: return "QUEENLOCK";
+            case DASHLOCK: return "DASHLOCK";
+            case ASSASSINATIONPROOF: return "ASSASSINATIONPROOF";
+            default: return "";
+        }
     }
 
     private boolean isWarded(Enemy e) {
