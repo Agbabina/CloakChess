@@ -28,7 +28,9 @@ public class EnemyGenerator {
 
         Array<Enemy> enemies = new Array<>();
 
-        int enemyCount = getEnemyCount(difficulty);
+        int enemyCount = omen == null
+            ? getEnemyCount(difficulty)
+            : BlitzBoardRules.enemyCount(difficulty);
 
         int attempts = 0;
 
