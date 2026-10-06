@@ -1976,6 +1976,7 @@ public class Main extends Game {
             if (!e.isAlive() || e.isFalling()) continue;
 
             EnemyCurse curse = enemyCurses.get(e);
+            CaptureCurse captureCurse = captureCurses.get(e);
 
             Integer shield = armorShields.get(e);
             Integer poison = poisonTurns.get(e);
@@ -1990,6 +1991,7 @@ public class Main extends Game {
             int count = 0;
 
             if (curse != null) count++;
+            if (captureCurse != null) count++;
             if (hasShield) count++;
             if (hasPoison) count++;
             if (hasBurn) count++;
@@ -2019,6 +2021,19 @@ public class Main extends Game {
                     0
                 );
 
+                index++;
+            }
+
+            // CAPTURE CURSE
+            if (captureCurse != null) {
+                drawRoundIcon(
+                    startX,
+                    startY - spacing * index,
+                    r,
+                    new Color(.95f, .45f, .25f, 1f),
+                    captureCurse.getShortLabel(),
+                    0
+                );
                 index++;
             }
 
@@ -2684,7 +2699,7 @@ public class Main extends Game {
         float alpha = MathUtils.clamp(blitzLastLabelTimer / 0.7f, 0f, 1f);
 
         batch.begin();
-        font.getData().setScale(.58f);
+        font.getData().setScale(.68f);
         font.setColor(.55f, .57f, .61f, alpha);
         font.draw(batch, blitzLastLabel, 18f, 42f);
         font.getData().setScale(1f);
@@ -2750,18 +2765,18 @@ public class Main extends Game {
             if (line1.length() > 8) line1 = line1.substring(0, 8);
             if (line2.length() > 8) line2 = line2.substring(0, 8);
 
-            font.getData().setScale(.40f);
+            font.getData().setScale(.50f);
             font.setColor(new Color(.18f, .12f, .08f, 1f));
             tipLayout.setText(font, relic.getName().substring(0, 1));
             font.draw(batch, relic.getName().substring(0, 1), rx + 25f - tipLayout.width / 2f,
                 relicY + relicCardH * .5f + tipLayout.height * .5f);
 
-            font.getData().setScale(.34f);
+            font.getData().setScale(.46f);
             font.setColor(new Color(1f, .82f, .35f, 1f));
             font.draw(batch, line1, rx + 48f, relicY + 42f);
             if (!line2.isEmpty()) font.draw(batch, line2, rx + 48f, relicY + 27f);
 
-            font.getData().setScale(.34f);
+            font.getData().setScale(.40f);
             font.setColor(new Color(.60f, .65f, .76f, 1f));
             font.draw(batch, "RELIC", rx + 48f, relicY + 12f);
         }
@@ -2782,11 +2797,11 @@ public class Main extends Game {
             shapeRenderer.end();
 
             batch.begin();
-            font.getData().setScale(.62f);
+            font.getData().setScale(.72f);
             font.setColor(new Color(1f, .80f, .28f, 1f));
             font.draw(batch, blitzLastResult.label, bx + 12f, by + bh - 18f);
 
-            font.getData().setScale(.40f);
+            font.getData().setScale(.48f);
             font.setColor(new Color(.60f, .66f, .78f, 1f));
             font.draw(batch, "SCORE BREAKDOWN", bx + 12f, by + bh - 38f);
 
@@ -2797,7 +2812,7 @@ public class Main extends Game {
 
             for (int i = 0; i < shown; i++) {
                 BlitzScore.Component c = blitzLastResult.components.get(i);
-                font.getData().setScale(.38f);
+                font.getData().setScale(.46f);
                 font.setColor(new Color(.82f, .85f, .92f, 1f));
                 String label = c.label;
                 if (label.length() > 23) label = label.substring(0, 23);
@@ -2828,7 +2843,7 @@ public class Main extends Game {
             font.setColor(new Color(1f, .55f, .28f, 1f));
             font.draw(batch, "x" + blitzLastResult.multiplier, bx + bw - 78f, by + 52f);
 
-            font.getData().setScale(.62f);
+            font.getData().setScale(.72f);
             font.setColor(new Color(1f, .84f, .30f, 1f));
             String finalText = "+" + String.format("%,d", blitzLastResult.points);
             tipLayout.setText(font, finalText);
@@ -2891,7 +2906,7 @@ public class Main extends Game {
         font.setColor(new Color(.65f, .68f, .78f, 1f));
         font.draw(batch, "MULT", panelX + panelW * .40f + 2f, panelY + 19f);
 
-        font.getData().setScale(.58f);
+        font.getData().setScale(.70f);
         font.setColor(new Color(1f, .55f, .28f, 1f));
         font.draw(batch, "CHAIN " + blitzManager.getStreak(), panelX + panelW * .52f, baseY);
         font.getData().setScale(.28f);
@@ -2901,14 +2916,14 @@ public class Main extends Game {
         int seconds = (int)Math.ceil(blitzManager.getTimeRemaining());
         int mins = seconds / 60;
         int secs = seconds % 60;
-        font.getData().setScale(.62f);
+        font.getData().setScale(.70f);
         font.setColor(seconds <= 20 ? new Color(1f, .28f, .28f, 1f) : Color.WHITE);
         font.draw(batch, String.format("%02d:%02d", mins, secs), panelX + panelW * .70f, baseY);
         font.getData().setScale(.28f);
         font.setColor(new Color(.65f, .68f, .78f, 1f));
         font.draw(batch, "TIME", panelX + panelW * .70f + 2f, panelY + 19f);
 
-        font.getData().setScale(.31f);
+        font.getData().setScale(.40f);
         font.setColor(gamble ? new Color(1f, .62f, .20f, 1f)
             : (ready ? new Color(1f, .82f, .35f, 1f) : new Color(.45f, .48f, .56f, 1f)));
 
@@ -2918,7 +2933,7 @@ public class Main extends Game {
         else gambleText = "GAMBLE  " + String.format("%.0f", blitzManager.getGambleCooldown()) + "s";
         font.draw(batch, gambleText, blitzGambleButton.x + 8f, blitzGambleButton.y + 23f);
 
-        font.getData().setScale(.24f);
+        font.getData().setScale(.32f);
         font.setColor(new Color(.65f, .68f, .78f, 1f));
         font.draw(batch, "G = BET", blitzGambleButton.x + 8f, blitzGambleButton.y + 10f);
 
@@ -5716,6 +5731,19 @@ public class Main extends Game {
 
     private void gameOver() {
         if (gameOverScreen.isVisible()) return;
+
+        // Blitz is run-based: dying wipes the active score, multiplier and relics.
+        if (blitzMode && blitzManager != null) {
+            blitzManager.endRun();
+            blitzManager.resetRun();
+            blitzMode = false;
+            blitzHudScore = 0f;
+            blitzLastLabel = "";
+            blitzLastLabelTimer = 0f;
+            blitzLastResult = null;
+            blitzBreakdownTimer = 0f;
+        }
+
         lastRunSouls = Math.round((difficulty * SOULS_PER_ROOM + runBonusSouls) * soulMultiplier(runPact));
         souls += lastRunSouls;
         saveMeta();
@@ -6056,7 +6084,7 @@ public class Main extends Game {
         EnemyCurse curse = enemyCurses.get(e);
         if (curse != null) lines.add(curse.getLabel() + ": " + curse.getDescription());
         CaptureCurse captureCurse = captureCurses.get(e);
-        if (captureCurse != null) lines.add("Capture: " + captureCurse.getDescription());
+        if (captureCurse != null) lines.add(captureCurse.getLabel() + ": " + captureCurse.getDescription());
         Integer shield = armorShields.get(e);
         if (shield != null && shield > 0) lines.add("Shield: " + shield);
         Integer pz = poisonTurns.get(e);
