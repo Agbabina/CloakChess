@@ -419,6 +419,9 @@ public class Main extends Game {
     private Array<Relic> ownedRelics = new Array<>();
     private Spell selectedSpell;
     private ShopScreen shopScreen;
+    private BlitzManager blitzManager;
+    private boolean blitzMode = false;
+    private boolean blitzLaunch = false;
 
     // Main menu
     private boolean menuVisible = true;
@@ -675,6 +678,7 @@ public class Main extends Game {
         rewardScreen = new RewardScreen(batch, shapeRenderer, font);
         gameOverScreen = new GameOverScreen(batch, shapeRenderer, font);
         shopScreen = new ShopScreen(batch, shapeRenderer, font);
+        blitzManager = new BlitzManager();
 
         resetPlayerStats();
         buildStartingHand();
@@ -2309,6 +2313,9 @@ public class Main extends Game {
 
     private void registerCapture() {
         captureCombo++;
+        if (blitzMode && blitzManager != null) {
+            blitzManager.capture();
+        }
         runBonusSouls++;
         int roll = random.nextInt(0, 100);
         if (roll>80){
@@ -2539,6 +2546,25 @@ public class Main extends Game {
             font.draw(batch, OMEN_DESC[omen], x, y - 28f);
         }
 
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
+    private void renderBlitzHud() {
+        if (!blitzMode || blitzManager == null) return;
+        float w = Gdx.graphics.getWidth();
+        float h = Gdx.graphics.getHeight();
+        batch.begin();
+        font.getData().setScale(.62f);
+        font.setColor(new Color(1f, .82f, .25f, 1f));
+        font.draw(batch, "BLITZ", 18f, h - 22f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, "SCORE " + blitzManager.getScore(), 18f, h - 48f);
+        font.draw(batch, "x" + blitzManager.getMultiplier() + "  STREAK " + blitzManager.getStreak(), 18f, h - 72f);
+        int seconds = (int)Math.ceil(blitzManager.getTimeRemaining());
+        font.setColor(seconds <= 20 ? new Color(1f, .25f, .25f, 1f) : Color.WHITE);
+        font.draw(batch, "TIME " + (seconds / 60) + ":" + String.format("%02d", seconds % 60), 18f, h - 96f);
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
         batch.end();
@@ -3689,6 +3715,12 @@ public class Main extends Game {
     }
 
     private void startGameFromMenu() {
+        blitzMode = false;
+        beginIntro(this::beginNewGame);
+    }
+
+    private void startBlitzFromMenu() {
+        blitzMode = true;
         beginIntro(this::beginNewGame);
     }
 
@@ -3701,7 +3733,12 @@ public class Main extends Game {
         evtVisible = false;
         omen = OMEN_NONE;
 
-        difficulty = 1;
+        if (blitzMode) {
+            blitzManager.start();
+            difficulty = 1;
+        } else {
+            difficulty = 1;
+        }
         cardModifiers.clear();
         enemyCurses.clear();
         poisonTurns.clear();
@@ -3804,7 +3841,7 @@ public class Main extends Game {
         } else if (containsWithPadding(blitzButton, touchX, touchY, padding)) {
 
             clickSound.play();
-            message("Blitz is coming in a future version!", 2f);
+            startBlitzFromMenu();
         }
     }
 
@@ -3868,7 +3905,7 @@ public class Main extends Game {
         if (hasAutosave())
             batch.draw(menuButtonTexture, continueButton.x, continueButton.y, continueButton.width, continueButton.height);
         batch.draw(menuButtonTexture, bestiaryButton.x, bestiaryButton.y, bestiaryButton.width, bestiaryButton.height);
-        batch.draw(menuButtonLockedTexture, blitzButton.x, blitzButton.y, blitzButton.width, blitzButton.height);
+        batch.draw(menuButtonTexture, blitzButton.x, blitzButton.y, blitzButton.width, blitzButton.height);
 
         // Logo: CHESS on launch, crossfades to CLOAKCHESS after any menu button press
         if (logoRevealed) logoFade = Math.min(1f, logoFade + Gdx.graphics.getDeltaTime() / 0.45f);
@@ -3890,17 +3927,8 @@ public class Main extends Game {
         if (hasAutosave()) drawMenuLabel(batch, "CONTINUE", continueButton, Color.WHITE);
         drawMenuLabel(batch, "BESTIARY", bestiaryButton, Color.WHITE);
 
-        font.setColor(new Color(.45f, .47f, .52f, 1f));
-        font.getData().setScale(.8f);
-        String locked = "BLITZ  [LOCKED]";
-        font.draw(batch, locked, blitzButton.x + blitzButton.width / 2f - 65f,
-            blitzButton.y + blitzButton.height / 2f + 10f);
+        drawMenuLabel(batch, "BLITZ", blitzButton, Color.WHITE);
 
-        font.getData().setScale(.55f);
-        font.setColor(new Color(.45f, .47f, .52f, 1f));
-        font.draw(batch, "COMING IN A FUTURE VERSION",
-            blitzButton.x + blitzButton.width / 2f - 92f,
-            blitzButton.y + 23f);
 
         // Version tag moved to the top-left so it doesn't sit under the TUTORIAL button
         font.getData().setScale(.55f);
@@ -5651,6 +5679,14 @@ public class Main extends Game {
             return;
         }
 
+        if (blitzMode && blitzManager != null && blitzManager.isActive()) {
+            blitzManager.update(delta);
+            if (!blitzManager.isActive()) {
+                showPopup("BLITZ OVER  SCORE " + blitzManager.getScore(), 1f, .75f, .25f, 3f);
+                blitzMode = false;
+            }
+        }
+
         for (Card c : hand) c.update(delta);
         if (!gameOverScreen.isVisible() && !shopScreen.isVisible()) updateCardHover();
         checkEnemyLandings();
@@ -5702,6 +5738,7 @@ public class Main extends Game {
         renderDefenseIcon();
         renderFloatTexts();
         renderObjectivePanel();
+        renderBlitzHud();
         renderUiButtons();
         renderTooltip();
         rewardScreen.render(hand);
