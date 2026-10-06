@@ -28,7 +28,9 @@ public class Card {
         ARCHBISHOP,
         COUNCILLOR,
         CLAUDE,
-        SHIFTER
+        SHIFTER,
+        LEAPER,
+        TWO_THEN_THREE
     }
 
     // Forms the Shifter card can take
@@ -246,6 +248,12 @@ public class Card {
 
             case CLAUDE:
                 return new ClaudeRules();
+
+            case LEAPER:
+                return new LeaperRules();
+
+            case TWO_THEN_THREE:
+                return new TwoThenThreeRules();
 
             default:
                 throw new IllegalArgumentException("Unsupported movement type: " + type);
@@ -752,7 +760,7 @@ public class Card {
         float drawY = animatedY + (HEIGHT - HEIGHT * scale) / 2f;
 
         // NAME
-        font.getData().setScale(0.85f * scale);
+        font.getData().setScale(1.00f * scale);
 
         if (isUsed()) font.setColor(Color.GRAY);
         else if (isClaude()) font.setColor(1f, 0.62f, 0.22f, 1f);
@@ -762,7 +770,7 @@ public class Card {
         font.draw(batch, name, drawX + 15f * scale, drawY + HEIGHT * scale - 18f * scale);
 
         // USES
-        font.getData().setScale(0.55f * scale);
+        font.getData().setScale(0.72f * scale);
 
         font.setColor(isUsed() ? Color.DARK_GRAY : new Color(1f, 0.80f, 0.30f, 1f));
 
@@ -771,7 +779,7 @@ public class Card {
         font.draw(batch, usesText, drawX + 15f * scale, drawY + HEIGHT * scale - 38f * scale);
 
         // MOVEMENT TYPE
-        font.getData().setScale(0.65f * scale);
+        font.getData().setScale(0.78f * scale);
 
         if (isUsed()) font.setColor(Color.DARK_GRAY);
         else if (isClaude()) font.setColor(1f, 0.55f, 0.15f, 1f);
@@ -820,6 +828,12 @@ public class Card {
 
             case CLAUDE:
                 return "Knight + 1 step";
+
+            case LEAPER:
+                return "Jump 2 tiles";
+
+            case TWO_THEN_THREE:
+                return "2 tiles, then 3";
 
             case SHIFTER:
                 return "Now: " + formLabel(currentForm);
