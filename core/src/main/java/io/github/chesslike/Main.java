@@ -2327,12 +2327,10 @@ public class Main extends Game {
         }
     }
 
-    private void registerCapture(Enemy capturedEnemy, Card captureCard, EnemyCurse captureCurse, boolean assassination) {
+    private void registerCapture(Enemy capturedEnemy, Card captureCard, EnemyCurse captureCurse, boolean assassination, int healthPercent) {
         captureCombo++;
 
         if (blitzMode && blitzManager != null) {
-            int healthPercent = capturedEnemy == null ? 100 :
-                Math.round(100f * capturedEnemy.getHealth() / Math.max(1, capturedEnemy.getMaxHealth()));
             String movement = captureCard == null ? "" : captureCard.getMovementType().name();
 
             BlitzScore.Result result = blitzManager.capture(
@@ -4814,6 +4812,9 @@ public class Main extends Game {
 
             EnemyCurse curse = enemyCurses.get(e);
             Card cc = captureCard;
+            int captureHealthPercent = Math.round(
+                100f * e.getHealth() / Math.max(1, e.getMaxHealth())
+            );
 
             // Critical capture happens first.
             boolean critical = invisibleTurns > 0 ? assassinate(e) : rollCriticalCapture(e);
@@ -4862,7 +4863,7 @@ public class Main extends Game {
                 player.getY()
             );
 
-            registerCapture(e, cc, curse, invisibleTurns > 0);
+            registerCapture(e, cc, curse, invisibleTurns > 0, captureHealthPercent);
             refillHandIfNeeded();
 
             groundPound(
