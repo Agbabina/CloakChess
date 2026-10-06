@@ -70,6 +70,12 @@ public class BlitzManager {
     }
 
     public void reset() {
+        resetRun();
+    }
+
+    // A Blitz death/run end clears the entire active run.
+    // Best score and unlocked relic progress are stored separately.
+    public void resetRun() {
         score.reset();
         timeRemaining = STARTING_TIME;
         active = false;
