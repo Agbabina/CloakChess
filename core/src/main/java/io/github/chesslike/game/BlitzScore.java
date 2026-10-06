@@ -116,6 +116,12 @@ public class BlitzScore {
             add(parts, "GOLD CLOCK", bonus);
         }
 
+        if (has(BlitzRelic.GOLDEN_FANG)) {
+            int bonus = (Math.max(0, gold) / 100) * 50;
+            base += bonus;
+            add(parts, "GOLDEN FANG", bonus);
+        }
+
         if (has(BlitzRelic.GOLDEN_MOMENT)) {
             int bonus = (Math.max(0, gold) / 100) * 100;
             base += bonus;
@@ -211,8 +217,6 @@ public class BlitzScore {
             if (!c.label.contains("%")) additive += c.points;
         }
         int percentBonus = Math.round((base) * percent / 100f);
-        if (percentBonus != 0) add(parts, "BONUS MULTIPLIERS", percentBonus);
-
         int pre = additive + percentBonus;
         int points = pre * Math.max(1, multiplier);
 
