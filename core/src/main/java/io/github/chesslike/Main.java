@@ -719,7 +719,7 @@ public class Main extends Game {
             new FreeTypeFontGenerator.FreeTypeFontParameter();
 
         // Generate the glyphs large instead of enlarging a tiny bitmap font.
-        parameter.size = 32;
+        parameter.size = 26;
         parameter.minFilter = Texture.TextureFilter.Nearest;
         parameter.magFilter = Texture.TextureFilter.Nearest;
 
