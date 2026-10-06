@@ -766,7 +766,7 @@ public class Card {
         font.draw(batch, name, drawX + 15f * scale, drawY + HEIGHT * scale - 18f * scale);
 
         // USES
-        font.getData().setScale(0.72f * scale);
+        font.getData().setScale(0.68f * scale);
 
         font.setColor(isUsed() ? Color.DARK_GRAY : new Color(1f, 0.80f, 0.30f, 1f));
 
