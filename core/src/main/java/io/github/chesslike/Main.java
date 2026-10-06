@@ -427,6 +427,9 @@ public class Main extends Game {
     private float blitzScorePulse = 0f;
     private String blitzLastLabel = "";
     private float blitzLastLabelTimer = 0f;
+    private BlitzScore.Result blitzLastResult = null;
+    private float blitzBreakdownTimer = 0f;
+    private final Rectangle blitzGambleButton = new Rectangle();
 
     // Main menu
     private boolean menuVisible = true;
@@ -2347,6 +2350,8 @@ public class Main extends Game {
             blitzScorePulse = 1f;
             blitzLastLabel = result.label;
             blitzLastLabelTimer = 1.15f;
+            blitzLastResult = result;
+            blitzBreakdownTimer = 2.2f;
 
             float cx = tileCenterX(player.getX());
             float cy = tileCenterY(player.getY());
@@ -2621,90 +2626,224 @@ public class Main extends Game {
 
         blitzScorePulse = Math.max(0f, blitzScorePulse - delta * 3.5f);
         blitzLastLabelTimer = Math.max(0f, blitzLastLabelTimer - delta);
+        blitzBreakdownTimer = Math.max(0f, blitzBreakdownTimer - delta);
 
-        float panelW = Math.min(650f, w - 28f);
-        float panelH = 88f;
-        float panelX = (w - panelW) * .5f;
-        float panelY = 14f;
+        // ----- RELIC BAR -----
+        int relicCount = blitzManager.getActiveRelics().size();
+        float relicAreaW = Math.min(760f, w - 28f);
+        float relicGap = 8f;
+        float relicCardW = relicCount > 0
+            ? Math.min(118f, (relicAreaW - relicGap * (relicCount - 1)) / relicCount)
+            : 0f;
+        float relicCardH = 62f;
+        float relicStart = (w - (relicCardW * relicCount + relicGap * Math.max(0, relicCount - 1))) * .5f;
+        float relicY = h - relicCardH - 14f;
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(.035f, .045f, .075f, .97f);
-        shapeRenderer.rect(panelX, panelY, panelW, panelH);
-        shapeRenderer.setColor(.18f, .20f, .28f, 1f);
-        shapeRenderer.rect(panelX, panelY + panelH - 3f, panelW, 3f);
+        for (int i = 0; i < relicCount; i++) {
+            float rx = relicStart + i * (relicCardW + relicGap);
+            shapeRenderer.setColor(.055f, .065f, .105f, .97f);
+            shapeRenderer.rect(rx, relicY, relicCardW, relicCardH);
+            shapeRenderer.setColor(.45f, .32f, .12f, 1f);
+            shapeRenderer.rect(rx, relicY, relicCardW, 2f);
+            shapeRenderer.setColor(.95f, .68f, .20f, .9f);
+            shapeRenderer.rect(rx, relicY + relicCardH - 3f, relicCardW, 3f);
 
-        float relicSize = 34f;
-        float relicGap = 7f;
-        float relicY = panelY + panelH + 7f;
-        float relicStart = panelX + 12f;
-
-        for (int i = 0; i < blitzManager.getActiveRelics().size(); i++) {
-            float rx = relicStart + i * (relicSize + relicGap);
-            shapeRenderer.setColor(.12f, .10f, .18f, .98f);
-            shapeRenderer.rect(rx, relicY, relicSize, relicSize);
-            shapeRenderer.setColor(1f, .72f, .22f, .9f);
-            shapeRenderer.rect(rx, relicY + relicSize - 3f, relicSize, 3f);
+            // Little relic emblem.
+            float cx = rx + 25f;
+            float cy = relicY + relicCardH * .5f;
+            shapeRenderer.setColor(.17f, .12f, .25f, 1f);
+            shapeRenderer.circle(cx, cy, 17f);
+            shapeRenderer.setColor(1f, .72f, .22f, 1f);
+            shapeRenderer.circle(cx, cy, 13f);
         }
         shapeRenderer.end();
 
         batch.begin();
-
-        for (int i = 0; i < blitzManager.getActiveRelics().size(); i++) {
+        for (int i = 0; i < relicCount; i++) {
             BlitzRelic relic = blitzManager.getActiveRelics().get(i);
-            float rx = relicStart + i * (relicSize + relicGap);
+            float rx = relicStart + i * (relicCardW + relicGap);
+
+            String[] words = relic.getName().toUpperCase().split(" ");
+            String line1 = words[0];
+            String line2 = words.length > 1 ? words[1] : "";
+            if (line1.length() > 8) line1 = line1.substring(0, 8);
+            if (line2.length() > 8) line2 = line2.substring(0, 8);
+
+            font.getData().setScale(.30f);
+            font.setColor(new Color(.18f, .12f, .08f, 1f));
+            tipLayout.setText(font, relic.getName().substring(0, 1));
+            font.draw(batch, relic.getName().substring(0, 1), rx + 25f - tipLayout.width / 2f,
+                relicY + relicCardH * .5f + tipLayout.height * .5f);
 
             font.getData().setScale(.34f);
-            font.setColor(new Color(1f, .78f, .30f, 1f));
-            String name = relic.getName().toUpperCase();
-            if (name.length() > 6) name = name.substring(0, 6);
-            tipLayout.setText(font, name);
-            font.draw(batch, name, rx + (relicSize - tipLayout.width) / 2f, relicY + 20f);
+            font.setColor(new Color(1f, .82f, .35f, 1f));
+            font.draw(batch, line1, rx + 48f, relicY + 42f);
+            if (!line2.isEmpty()) font.draw(batch, line2, rx + 48f, relicY + 27f);
 
-            font.getData().setScale(.27f);
-            font.setColor(new Color(.72f, .75f, .84f, 1f));
-            font.draw(batch, "RELIC", rx + 7f, relicY + 9f);
+            font.getData().setScale(.25f);
+            font.setColor(new Color(.60f, .65f, .76f, 1f));
+            font.draw(batch, "RELIC", rx + 48f, relicY + 12f);
+        }
+        batch.end();
+
+        // ----- SCORE BREAKDOWN -----
+        if (blitzLastResult != null && blitzBreakdownTimer > 0f) {
+            float bw = Math.min(270f, Math.max(210f, w * .25f));
+            float bh = Math.min(390f, h - 230f);
+            float bx = w - bw - 12f;
+            float by = 120f;
+
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.setColor(.035f, .045f, .075f, .96f);
+            shapeRenderer.rect(bx, by, bw, bh);
+            shapeRenderer.setColor(1f, .68f, .20f, .9f);
+            shapeRenderer.rect(bx, by + bh - 3f, bw, 3f);
+            shapeRenderer.end();
+
+            batch.begin();
+            font.getData().setScale(.48f);
+            font.setColor(new Color(1f, .80f, .28f, 1f));
+            batch.draw(circleTex, 0, 0, 0, 0); // keep SpriteBatch state valid; no visible draw
+            font.draw(batch, blitzLastResult.label, bx + 12f, by + bh - 18f);
+
+            font.getData().setScale(.30f);
+            font.setColor(new Color(.60f, .66f, .78f, 1f));
+            font.draw(batch, "SCORE BREAKDOWN", bx + 12f, by + bh - 38f);
+
+            float ty = by + bh - 60f;
+            float row = 19f;
+            int maxRows = Math.max(5, Math.min(13, (int)((bh - 105f) / row)));
+            int shown = Math.min(maxRows, blitzLastResult.components.size());
+
+            for (int i = 0; i < shown; i++) {
+                BlitzScore.Component c = blitzLastResult.components.get(i);
+                font.getData().setScale(.29f);
+                font.setColor(new Color(.82f, .85f, .92f, 1f));
+                String label = c.label;
+                if (label.length() > 23) label = label.substring(0, 23);
+                font.draw(batch, label, bx + 12f, ty);
+
+                String pts = "+" + String.format("%,d", c.points);
+                tipLayout.setText(font, pts);
+                font.setColor(new Color(1f, .72f, .28f, 1f));
+                font.draw(batch, pts, bx + bw - 12f - tipLayout.width, ty);
+                ty -= row;
+            }
+
+            if (blitzLastResult.components.size() > shown) {
+                font.getData().setScale(.25f);
+                font.setColor(new Color(.55f, .60f, .70f, 1f));
+                font.draw(batch, "+" + (blitzLastResult.components.size() - shown) + " more...", bx + 12f, ty);
+                ty -= row;
+            }
+
+            font.getData().setScale(.30f);
+            font.setColor(new Color(.58f, .63f, .72f, 1f));
+            font.draw(batch, "RAW", bx + 12f, by + 52f);
+            font.getData().setScale(.44f);
+            font.setColor(Color.WHITE);
+            font.draw(batch, String.format("%,d", blitzLastResult.basePoints), bx + 52f, by + 52f);
+
+            font.getData().setScale(.30f);
+            font.setColor(new Color(1f, .55f, .28f, 1f));
+            font.draw(batch, "x" + blitzLastResult.multiplier, bx + bw - 78f, by + 52f);
+
+            font.getData().setScale(.52f);
+            font.setColor(new Color(1f, .84f, .30f, 1f));
+            String finalText = "+" + String.format("%,d", blitzLastResult.points);
+            tipLayout.setText(font, finalText);
+            font.draw(batch, finalText, bx + bw - 12f - tipLayout.width, by + 23f);
+
+            font.getData().setScale(1f);
+            font.setColor(Color.WHITE);
+            batch.end();
         }
 
-        float baseY = panelY + 57f;
+        // ----- BOTTOM SCORE PLATE -----
+        float panelW = Math.min(720f, w - 28f);
+        float panelH = 102f;
+        float panelX = (w - panelW) * .5f;
+        float panelY = 10f;
 
-        font.getData().setScale(.72f + blitzScorePulse * .08f);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(.025f, .035f, .06f, .98f);
+        shapeRenderer.rect(panelX, panelY, panelW, panelH);
+        shapeRenderer.setColor(.18f, .20f, .28f, 1f);
+        shapeRenderer.rect(panelX, panelY + panelH - 3f, panelW, 3f);
+
+        // Time Gamble button
+        float gbw = Math.min(170f, panelW * .25f);
+        float gbh = 38f;
+        blitzGambleButton.set(panelX + panelW - gbw - 12f, panelY + 10f, gbw, gbh);
+        boolean gamble = blitzManager.isTimeGambleActive();
+        boolean ready = blitzManager.getGambleCooldown() <= 0f && !gamble;
+        shapeRenderer.setColor(gamble ? .55f : (ready ? .18f : .10f),
+            gamble ? .18f : .12f,
+            gamble ? .08f : .18f, .98f);
+        shapeRenderer.rect(blitzGambleButton.x, blitzGambleButton.y, blitzGambleButton.width, blitzGambleButton.height);
+        shapeRenderer.setColor(gamble ? 1f : .75f, gamble ? .55f : .68f, .20f, 1f);
+        shapeRenderer.rect(blitzGambleButton.x, blitzGambleButton.y + blitzGambleButton.height - 3f,
+            blitzGambleButton.width, 3f);
+        shapeRenderer.end();
+
+        batch.begin();
+
+        float baseY = panelY + 67f;
+
+        font.getData().setScale(.76f + blitzScorePulse * .10f);
         font.setColor(new Color(1f, .84f, .30f, 1f));
         String scoreText = String.format("%,d", Math.round(blitzHudScore));
         font.draw(batch, scoreText, panelX + 16f, baseY);
-        font.getData().setScale(.30f);
+
+        font.getData().setScale(.28f);
         font.setColor(new Color(.65f, .68f, .78f, 1f));
         font.draw(batch, "SCORE", panelX + 18f, panelY + 19f);
 
         font.getData().setScale(.68f);
         font.setColor(Color.WHITE);
-        font.draw(batch, "x" + blitzManager.getMultiplier(), panelX + panelW * .43f, baseY);
-        font.getData().setScale(.30f);
+        font.draw(batch, "x" + blitzManager.getMultiplier(), panelX + panelW * .40f, baseY);
+        font.getData().setScale(.28f);
         font.setColor(new Color(.65f, .68f, .78f, 1f));
-        font.draw(batch, "MULT", panelX + panelW * .43f + 2f, panelY + 19f);
+        font.draw(batch, "MULT", panelX + panelW * .40f + 2f, panelY + 19f);
 
-        font.getData().setScale(.62f);
+        font.getData().setScale(.58f);
         font.setColor(new Color(1f, .55f, .28f, 1f));
-        font.draw(batch, "STREAK " + blitzManager.getStreak(), panelX + panelW * .58f, baseY);
-        font.getData().setScale(.30f);
+        font.draw(batch, "CHAIN " + blitzManager.getStreak(), panelX + panelW * .52f, baseY);
+        font.getData().setScale(.28f);
         font.setColor(new Color(.65f, .68f, .78f, 1f));
-        font.draw(batch, "CHAIN", panelX + panelW * .58f + 2f, panelY + 19f);
+        font.draw(batch, "STREAK", panelX + panelW * .52f + 2f, panelY + 19f);
 
         int seconds = (int)Math.ceil(blitzManager.getTimeRemaining());
         int mins = seconds / 60;
         int secs = seconds % 60;
         font.getData().setScale(.62f);
         font.setColor(seconds <= 20 ? new Color(1f, .28f, .28f, 1f) : Color.WHITE);
-        font.draw(batch, String.format("%02d:%02d", mins, secs), panelX + panelW - 94f, baseY);
-        font.getData().setScale(.30f);
+        font.draw(batch, String.format("%02d:%02d", mins, secs), panelX + panelW * .70f, baseY);
+        font.getData().setScale(.28f);
         font.setColor(new Color(.65f, .68f, .78f, 1f));
-        font.draw(batch, "TIME", panelX + panelW - 91f, panelY + 19f);
+        font.draw(batch, "TIME", panelX + panelW * .70f + 2f, panelY + 19f);
+
+        font.getData().setScale(.31f);
+        font.setColor(gamble ? new Color(1f, .62f, .20f, 1f)
+            : (ready ? new Color(1f, .82f, .35f, 1f) : new Color(.45f, .48f, .56f, 1f)));
+
+        String gambleText;
+        if (gamble) gambleText = "GAMBLE  " + String.format("%.1f", blitzManager.getGambleRemaining()) + "s";
+        else if (ready) gambleText = "TIME GAMBLE  -10s  x2";
+        else gambleText = "GAMBLE  " + String.format("%.0f", blitzManager.getGambleCooldown()) + "s";
+        font.draw(batch, gambleText, blitzGambleButton.x + 8f, blitzGambleButton.y + 23f);
+
+        font.getData().setScale(.24f);
+        font.setColor(new Color(.65f, .68f, .78f, 1f));
+        font.draw(batch, "G = BET", blitzGambleButton.x + 8f, blitzGambleButton.y + 10f);
 
         if (blitzLastLabelTimer > 0f) {
             float a = MathUtils.clamp(blitzLastLabelTimer * 1.8f, 0f, 1f);
             font.getData().setScale(.38f);
             font.setColor(1f, .82f, .35f, a);
             tipLayout.setText(font, blitzLastLabel);
-            font.draw(batch, blitzLastLabel, (w - tipLayout.width) / 2f, panelY + panelH + 52f);
+            font.draw(batch, blitzLastLabel, (w - tipLayout.width) / 2f, panelY + panelH + 18f);
         }
 
         font.getData().setScale(1f);
@@ -3882,6 +4021,8 @@ public class Main extends Game {
             blitzScorePulse = 0f;
             blitzLastLabel = "";
             blitzLastLabelTimer = 0f;
+            blitzLastResult = null;
+            blitzBreakdownTimer = 0f;
         } else {
             difficulty = 1;
         }
@@ -4395,6 +4536,17 @@ public class Main extends Game {
 
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
+            if (blitzMode && blitzManager != null && blitzGambleButton.contains(ux, uy)) {
+                if (blitzManager.activateTimeGamble()) {
+                    clickSound.play();
+                    showPopup("TIME GAMBLE  ×2 SCORE!", 1f, .55f, .2f, .9f);
+                    startShake(.08f, 2f);
+                } else {
+                    playSfx(errorSound);
+                    message("Time Gamble is unavailable.", 1f);
+                }
+                return;
+            }
             if (handleUiTap(ux, uy)) return;
         }
         if (handleCardDrag()) return;
@@ -4417,6 +4569,15 @@ public class Main extends Game {
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
             rerollActiveCard();
+            return;
+        }
+        if (blitzMode && blitzManager != null && Gdx.input.isKeyJustPressed(Input.Keys.G)) {
+            if (blitzManager.activateTimeGamble()) {
+                showPopup("TIME GAMBLE  ×2 SCORE!", 1f, .55f, .2f, .9f);
+                startShake(.08f, 2f);
+            } else {
+                message("Time Gamble is unavailable.", 1f);
+            }
             return;
         }
         if (shootMode) {
