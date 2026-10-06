@@ -1306,7 +1306,10 @@ public class Main extends Game {
     }
 
     private void generateEnemiesForCurrentRoom() {
-        enemies = enemyGenerator.generateEnemies(difficulty, player.getX(), player.getY());
+        BlitzOmen blitzOmen = blitzMode && blitzManager != null ? blitzManager.getCurrentOmen() : null;
+        enemies = blitzOmen != null
+            ? enemyGenerator.generateEnemies(difficulty, player.getX(), player.getY(), blitzOmen)
+            : enemyGenerator.generateEnemies(difficulty, player.getX(), player.getY());
         startRoomObjective();
         tooltipEnemy = null;
         pendingArrivals.clear();
