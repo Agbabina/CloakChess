@@ -39,7 +39,7 @@ public class BlitzManager {
     public void addTime(float seconds,String reason){
         if(!active||seconds==0f)return;
         float before=timeRemaining; timeRemaining=Math.max(0f,Math.min(MAX_TIME,before+seconds));
-        lastTimeDelta=timeRemaining-before; lastTimeReason=reason==null?"":reason;
+        lastTimeDelta += timeRemaining-before; lastTimeReason=reason==null?"":reason;
     }
     public float consumeLastTimeDelta(){float d=lastTimeDelta;lastTimeDelta=0f;lastTimeReason="";return d;}
     public String getLastTimeReason(){return lastTimeReason;}
@@ -63,7 +63,7 @@ public class BlitzManager {
     public int capture(){return score.addCapture();} public int specialCapture(int bonus){return score.addSpecialCapture(bonus);}
     public int roomClear(){int p=score.addRoomClear();addTime(5f,"ROOM CLEAR");if(activeRelics.contains(BlitzRelic.SUN_DIAL))addTime(6f,"SUN DIAL");if(activeRelics.contains(BlitzRelic.HASTE_CORE))addTime(3f,"HASTE CORE");return p;}
     public int spellCast(){int p=score.addSpell();if(activeRelics.contains(BlitzRelic.SPELL_ENGINE))addTime(2f,"SPELL ENGINE");return p;}
-    public int cardPlayed(){int p=score.addCardPlay();if(activeRelics.contains(BlitzRelic.CARD_CLOCK)&&score.getTotalCaptures()>0&&score.getTotalCaptures()%5==0)addTime(2f,"CARD CLOCK");return p;}
+    public int cardPlayed(){int p=score.addCardPlay();if(activeRelics.contains(BlitzRelic.CARD_CLOCK)&&score.getCardsPlayed()>0&&score.getCardsPlayed()%5==0)addTime(2f,"CARD CLOCK");return p;}
     public void breakStreak(){score.breakStreak();} public void resetRoom(){score.resetRoom();}
 
     public void refreshRelicShop(){shopOffers.clear();ArrayList<BlitzRelic> pool=new ArrayList<>();Collections.addAll(pool,BlitzRelic.values());Collections.shuffle(pool,random);for(BlitzRelic r:pool)if(!activeRelics.contains(r)){shopOffers.add(r);if(shopOffers.size()>=4)break;}}
@@ -72,7 +72,7 @@ public class BlitzManager {
         if(!active||relic==null||activeRelics.contains(relic))return false;
         activeRelics.add(relic);score.setRelics(activeRelics);
         addTime(4f,"RELIC ACTIVATED");
-        if(activeRelics.contains(BlitzRelic.RELIC_ENGINE)){score.addSpecialCapture(1000);addTime(5f,"RELIC ENGINE");}
+        if(activeRelics.contains(BlitzRelic.RELIC_ENGINE)){score.addBonusScore(1000);addTime(5f,"RELIC ENGINE");}
         return true;
     }
     public boolean hasRelic(BlitzRelic relic){return activeRelics.contains(relic);}
