@@ -54,14 +54,11 @@ public class CardCombination {
         new Recipe(Card.MovementType.PAWN,       Card.MovementType.KNIGHT,     "Dash",       Card.MovementType.DASH,       2),
         new Recipe(Card.MovementType.PAWN,       Card.MovementType.DASH,       "Rook",       Card.MovementType.ROOK,       2),
         new Recipe(Card.MovementType.KNIGHT,     Card.MovementType.ROOK,       "Councillor", Card.MovementType.COUNCILLOR, 2),
-        new Recipe(Card.MovementType.BISHOP,     Card.MovementType.QUEEN,      "Chancellor", Card.MovementType.CHANCELLOR, 2),
         new Recipe(Card.MovementType.ROOK,       Card.MovementType.QUEEN,      "Mad Rook",   Card.MovementType.MADROOK,    2),
         new Recipe(Card.MovementType.SHIFTER,    Card.MovementType.KNIGHT,     "Blinker",    Card.MovementType.BLINKER,    2),
         new Recipe(Card.MovementType.SHIFTER,    Card.MovementType.QUEEN,      "Chameleon",  Card.MovementType.CHAMELEON,  2),
         new Recipe(Card.MovementType.PAWN,       Card.MovementType.CLAUDE,     "Shifter",    Card.MovementType.SHIFTER,    3),
-        new Recipe(Card.MovementType.CLAUDE,     Card.MovementType.ROOK,       "Chancellor", Card.MovementType.CHANCELLOR, 2),
         new Recipe(Card.MovementType.CLAUDE,     Card.MovementType.BISHOP,     "Blinker",    Card.MovementType.BLINKER,    2),
-        new Recipe(Card.MovementType.ARCHBISHOP, Card.MovementType.COUNCILLOR, "Chancellor", Card.MovementType.CHANCELLOR, 2),
         new Recipe(Card.MovementType.DASH,       Card.MovementType.SHIFTER,    "Jester",     Card.MovementType.JESTER,     2),
     };
 
