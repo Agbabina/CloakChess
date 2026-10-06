@@ -15,7 +15,28 @@ public enum BlitzRelic {
     ROYAL_SEAL("Royal Seal", "Queen, Rook and Bishop captures gain +75% score."),
     ASSASSINS_VEIL("Assassin's Veil", "Cloak/assassination captures deal double score."),
     BROKEN_CROWN("Broken Crown", "At x5 multiplier, all capture scores gain +25%."),
-    ENDLESS_FANG("Endless Fang", "Every 10th capture permanently adds +25 base score.");
+    ENDLESS_FANG("Endless Fang", "Every 10th capture permanently adds +25 base score."),
+
+    CHRONO_COG("Chrono Cog", "Every 5th capture restores 3 seconds."),
+    OVERTIME_GEM("Overtime Gem", "Captures under 20 seconds restore 3 seconds."),
+    SUN_DIAL("Sun Dial", "Clearing a room restores 6 seconds."),
+    WAR_DRUM("War Drum", "Cursed captures restore 2 seconds and gain +150 score."),
+    VOID_MIRROR("Void Mirror", "Assassinations gain +50% score and 1 second."),
+    COMBO_ENGINE("Combo Engine", "At 3+ streak, captures gain +25% score."),
+    OVERDRIVE("Overdrive", "At x4+, captures gain +50% score."),
+    CHAIN_LINK("Chain Link", "Every 4th capture adds +300 score."),
+    LAST_STAND("Last Stand", "Under 15 seconds, captures gain +100% score and 1 second."),
+    GOLD_CLOCK("Gold Clock", "Every 50 gold held adds +25 capture score."),
+    SPELL_ENGINE("Spell Engine", "Casting a spell restores 2 seconds."),
+    CARD_CLOCK("Card Clock", "Every 5 cards played restores 2 seconds."),
+    RELIC_ENGINE("Relic Engine", "Buying a relic grants +1,000 score and 5 seconds."),
+    MERCILESS_EDGE("Merciless Edge", "Captures at x3+ gain +30% score."),
+    HASTE_CORE("Haste Core", "Room clears restore 3 seconds and grant +250 score."),
+    EXECUTION_CLOCK("Execution Clock", "Every 7th capture restores 5 seconds."),
+    CRITICAL_MASS("Critical Mass", "Every 6th capture gains +500 score."),
+    GOLDEN_MOMENT("Golden Moment", "Every 100 gold held grants +100 capture score."),
+    TIME_BLOOM("Time Bloom", "First capture of each room restores 4 seconds."),
+    FRENZY_REACTOR("Frenzy Reactor", "At 5+ streak, every capture restores 1 second.");
 
     private final String name;
     private final String description;
