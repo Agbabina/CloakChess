@@ -2674,6 +2674,24 @@ public class Main extends Game {
         batch.end();
     }
 
+    private void renderBlitzComboText() {
+        if (!blitzMode || blitzLastLabelTimer <= 0f) return;
+
+        float w = Gdx.graphics.getWidth();
+        float h = Gdx.graphics.getHeight();
+
+        blitzLastLabelTimer -= Gdx.graphics.getDeltaTime();
+        float alpha = MathUtils.clamp(blitzLastLabelTimer / 0.7f, 0f, 1f);
+
+        batch.begin();
+        font.getData().setScale(.58f);
+        font.setColor(.55f, .57f, .61f, alpha);
+        font.draw(batch, blitzLastLabel, 18f, 42f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
     private void renderBlitzHud() {
         if (!blitzMode || blitzManager == null) return;
 
@@ -6261,6 +6279,7 @@ public class Main extends Game {
         renderFloatTexts();
         renderObjectivePanel();
         renderBlitzHud();
+        renderBlitzComboText();
         renderUiButtons();
         renderTooltip();
         rewardScreen.render(hand);
