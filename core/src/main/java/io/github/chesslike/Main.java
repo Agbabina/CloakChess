@@ -2761,7 +2761,7 @@ public class Main extends Game {
             font.setColor(new Color(1f, .80f, .28f, 1f));
             font.draw(batch, blitzLastResult.label, bx + 12f, by + bh - 18f);
 
-            font.getData().setScale(.30f);
+            font.getData().setScale(.40f);
             font.setColor(new Color(.60f, .66f, .78f, 1f));
             font.draw(batch, "SCORE BREAKDOWN", bx + 12f, by + bh - 38f);
 
@@ -2786,24 +2786,24 @@ public class Main extends Game {
             }
 
             if (blitzLastResult.components.size() > shown) {
-                font.getData().setScale(.25f);
+                font.getData().setScale(.34f);
                 font.setColor(new Color(.55f, .60f, .70f, 1f));
                 font.draw(batch, "+" + (blitzLastResult.components.size() - shown) + " more...", bx + 12f, ty);
                 ty -= row;
             }
 
-            font.getData().setScale(.30f);
+            font.getData().setScale(.40f);
             font.setColor(new Color(.58f, .63f, .72f, 1f));
             font.draw(batch, "RAW", bx + 12f, by + 52f);
-            font.getData().setScale(.44f);
+            font.getData().setScale(.52f);
             font.setColor(Color.WHITE);
             font.draw(batch, String.format("%,d", blitzLastResult.basePoints), bx + 52f, by + 52f);
 
-            font.getData().setScale(.30f);
+            font.getData().setScale(.40f);
             font.setColor(new Color(1f, .55f, .28f, 1f));
             font.draw(batch, "x" + blitzLastResult.multiplier, bx + bw - 78f, by + 52f);
 
-            font.getData().setScale(.52f);
+            font.getData().setScale(.62f);
             font.setColor(new Color(1f, .84f, .30f, 1f));
             String finalText = "+" + String.format("%,d", blitzLastResult.points);
             tipLayout.setText(font, finalText);
@@ -2858,7 +2858,7 @@ public class Main extends Game {
         font.setColor(Color.WHITE);
         font.draw(batch, "x" + blitzManager.getMultiplier(), panelX + panelW * .40f, baseY);
         if (blitzLastLabelTimer > 0f) {
-            font.getData().setScale(.52f);
+            font.getData().setScale(.62f);
             font.setColor(new Color(1f, .72f, .22f, 1f));
             font.draw(batch, blitzLastLabel, panelX + panelW * .40f, panelY + 22f);
         }
