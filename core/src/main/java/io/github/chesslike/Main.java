@@ -2156,6 +2156,8 @@ public class Main extends Game {
             Integer pz = poisonTurns.get(enemy);
             enemyCurses.remove(enemy);
             captureCurses.remove(enemy);
+            stunnedTurns.remove(enemy);
+            glassedTurns.remove(enemy);
             poisonTurns.remove(enemy);
             burnTurns.remove(enemy);
             playSfx(enemyDeathSound);
