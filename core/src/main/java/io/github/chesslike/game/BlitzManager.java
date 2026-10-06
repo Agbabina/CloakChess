@@ -2,6 +2,7 @@ package io.github.chesslike.game;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
+import java.util.Random;
 
 public class BlitzManager {
     private static final float STARTING_TIME = 180f;
@@ -9,10 +10,17 @@ public class BlitzManager {
     private final Preferences save = Gdx.app.getPreferences("CloakChessBlitz");
     private float timeRemaining;
     private boolean active;
+    private BlitzOmen currentOmen;
+    private final Random random = new Random();
 
     public BlitzManager() { reset(); }
 
-    public void start() { reset(); active = true; }
+    public void start() {
+        reset();
+        BlitzOmen[] omens = BlitzOmen.values();
+        currentOmen = omens[random.nextInt(omens.length)];
+        active = true;
+    }
 
     public void update(float delta) {
         if (!active) return;
@@ -36,6 +44,7 @@ public class BlitzManager {
         score.reset();
         timeRemaining = STARTING_TIME;
         active = false;
+        currentOmen = null;
     }
 
     public int capture() { return score.addCapture(); }
@@ -53,4 +62,5 @@ public class BlitzManager {
     public boolean isActive() { return active; }
     public int getBestScore() { return save.getInteger("bestScore", 0); }
     public BlitzScore getScoreSystem() { return score; }
+    public BlitzOmen getCurrentOmen() { return currentOmen; }
 }
