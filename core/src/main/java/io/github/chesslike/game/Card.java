@@ -226,6 +226,18 @@ public class Card {
             case DASH:
                 return new DashRules();
 
+            case MADROOK:
+                return new MadRookRules();
+
+            case JESTER:
+                return new JesterRules();
+
+            case BLINKER:
+                return new BlinkerRules();
+
+            case CHAMELEON:
+                return new ChameleonRules();
+
             case ARCHBISHOP:
                 return new ArchbishopRules();
 
