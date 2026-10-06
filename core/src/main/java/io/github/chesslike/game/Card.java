@@ -30,7 +30,6 @@ public class Card {
         CLAUDE,
         SHIFTER,
         LEAPER,
-        TWO_THEN_THREE
     }
 
     // Forms the Shifter card can take
@@ -251,9 +250,6 @@ public class Card {
 
             case LEAPER:
                 return new LeaperRules();
-
-            case TWO_THEN_THREE:
-                return new TwoThenThreeRules();
 
             default:
                 throw new IllegalArgumentException("Unsupported movement type: " + type);
@@ -789,7 +785,7 @@ public class Card {
         font.draw(batch, movementType.toString(), drawX + 20f * scale, drawY + 75f * scale);
 
         // DESCRIPTION
-        font.getData().setScale(0.55f * scale);
+        font.getData().setScale(0.72f * scale);
 
         font.setColor(isUsed() ? Color.DARK_GRAY : new Color(0.70f, 0.75f, 0.82f, 1f));
 
@@ -831,9 +827,6 @@ public class Card {
 
             case LEAPER:
                 return "Jump 2 tiles";
-
-            case TWO_THEN_THREE:
-                return "2 tiles, then 3";
 
             case SHIFTER:
                 return "Now: " + formLabel(currentForm);
