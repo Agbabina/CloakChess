@@ -2148,6 +2148,13 @@ public class Main extends Game {
 
             message("Frail! +1 damage!", 1.2f);
         }
+        Integer glass = glassedTurns.get(enemy);
+        if (glass != null && glass > 0) {
+            amount += 1;
+            if (glass - 1 <= 0) glassedTurns.remove(enemy);
+            else glassedTurns.put(enemy, glass - 1);
+            spawnFloat("+1 GLASS", tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 42f, .55f, .85f, 1f);
+        }
         int dealt = Math.min(amount, Math.max(0, enemy.getHealth()));
         boolean died = enemy.takeDamage(amount);
         if (dealt > 0) spawnFloat("-" + dealt, tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 20f, fr, fg, fb);
