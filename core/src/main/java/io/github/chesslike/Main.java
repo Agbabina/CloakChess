@@ -157,7 +157,7 @@ public class Main extends Game {
     private static final Color COL_BURN = new Color(1f, .35f, .12f, 1f);
     // ---------- Tutorial ----------
     // ---------- Tutorial ----------
-    private static final String[] TUT_TITLES = {"THE BASICS", "MOVES - TAP A CARD", "CARDS", "AUGMENTS", "MANA & SPELLS", "DEFENSE & HP", "CURSES & STATUS 1/3", "CURSES & STATUS 2/3", "CURSES & STATUS 3/3", "OMENS", "RUN SYSTEMS"};
+    private static final String[] TUT_TITLES = {"THE BASICS", "MOVES - TAP A CARD", "CARDS", "AUGMENTS", "MANA & SPELLS", "DEFENSE & HP", "CURSES & STATUS 1/3", "CURSES & STATUS 2/3", "CURSES & STATUS 3/3", "OMENS", "RUN SYSTEMS", "BLITZ MODE", "BLITZ SCORING", "BLITZ RELICS", "BLITZ TIME GAMBLE"};
     private static final int TUT_MOVES_PAGE = 1;
     private static final int TUT_AUGMENT_PAGE = 3;
     private static final int TUT_CURSE_PAGE = 6;
@@ -203,6 +203,30 @@ public class Main extends Game {
             "Clear rooms without damage for bonus gold.",
             "Shop every 3rd room: buy, sell cards, or reroll the stock.",
             "Souls buy upgrades. Pacts trade a buff for a drawback."
+        },
+        {
+            "BLITZ is a score-attack mode. Your run starts with a timer.",
+            "Clear rooms, chain captures and buy relics before the clock hits zero.",
+            "Blitz uses denser enemy rooms and special omens.",
+            "Your score and multiplier stay at the bottom so the board stays readable."
+        },
+        {
+            "Every capture builds your CHAIN. Breaking it resets the multiplier.",
+            "Relics add score rules, multipliers and time interactions.",
+            "Special captures, low-health enemies and streak milestones can explode your score.",
+            "Play fast, but protect the chain: a missed capture can cost more than the move itself."
+        },
+        {
+            "You can carry up to 6 Blitz relics.",
+            "Relics can add score, multiplier, gold scaling, spell value or extra time.",
+            "The Relic Forge appears every 2 rooms.",
+            "Some relics trigger from captures, room clears, spells, cards or relic purchases."
+        },
+        {
+            "TIME GAMBLE costs 10 seconds and lasts 8 seconds.",
+            "While active, capture score is doubled.",
+            "It has an 18-second cooldown after use.",
+            "Keyboard: G. Phone: tap TIME GAMBLE. Use it when a big chain is ready."
         }
     };
 
@@ -352,7 +376,7 @@ public class Main extends Game {
     private int bounceArrows = 0, arrowBouncesLeft = 0;
     private boolean arrowBouncing = false;
     private final Array<Enemy> arrowHits = new Array<>();
-    private static final int BOUNCE_PACK = 2, BOUNCE_BOUNCES = 2, INTEREST_CAP = 10;
+    private static final int BOUNCE_PACK = 1, BOUNCE_BOUNCES = 1, INTEREST_CAP = 10;
     private boolean tutorialVisible = false;
     private int tutPage = 0;
     private final Rectangle tutorialButton = new Rectangle();
@@ -410,6 +434,7 @@ public class Main extends Game {
 
     private final ObjectMap<Card, CardModifier> cardModifiers = new ObjectMap<>();
     private final ObjectMap<Enemy, EnemyCurse> enemyCurses = new ObjectMap<>();
+    private final ObjectMap<Enemy, CaptureCurse> captureCurses = new ObjectMap<>();
     private final ObjectMap<Enemy, Integer> poisonTurns = new ObjectMap<>();
     private final ObjectMap<Enemy, Integer> burnTurns = new ObjectMap<>();
     private final ObjectMap<Enemy, Integer> armorShields = new ObjectMap<>();
@@ -449,6 +474,9 @@ public class Main extends Game {
     private boolean shopWasOpenedThisRoom = false;
     private final Array<Bolt> bolts = new Array<>();
     private final ObjectMap<Enemy, Float> confusedUntil = new ObjectMap<>();
+    private final ObjectMap<Enemy, Integer> stunnedTurns = new ObjectMap<>();
+    private final ObjectMap<Enemy, Integer> glassedTurns = new ObjectMap<>();
+    private int freezeTurns = 0;
     // On-screen touch buttons: 0 = arrow, 1-3 = spell slots, 4 = cancel, 5 = sacrifice, 6 = reroll
     private final Rectangle[] uiButtons = {new Rectangle(), new Rectangle(), new Rectangle(), new Rectangle(), new Rectangle(), new Rectangle(), new Rectangle()};
     // ---------- Placeholder SFX (optional: missing files are skipped silently) ----------
@@ -1204,8 +1232,12 @@ public class Main extends Game {
         else if (spell == Spell.BURN) cost = 2;
         else if (spell == Spell.CONFUSE) cost = 4;
         else if (spell == Spell.CLOAK) cost = 3;
-        else if (spell== Spell.STUN) cost=2;
-        else if (spell ==Spell.FREEZE) cost=3;
+        else if (spell == Spell.STUN) cost = 2;
+        else if (spell == Spell.ICE) cost = 2;
+        else if (spell == Spell.FREEZE) cost = 3;
+        else if (spell == Spell.GLASSING) cost = 4;
+        else if (spell == Spell.SHIELD) cost = 3;
+        else if (spell == Spell.CLEANSE) cost = 2;
         else cost = 2;
         if (hasRelic(Relic.Blessing.THRIFTY_MAGE)) cost -= 1;
         if (hasCurse(Relic.Curse.COSTLY_MAGIC)) cost += 1;
@@ -1323,6 +1355,10 @@ public class Main extends Game {
         tooltipEnemy = null;
         pendingArrivals.clear();
         enemyCurses.clear();
+        captureCurses.clear();
+        stunnedTurns.clear();
+        glassedTurns.clear();
+        freezeTurns = 0;
         poisonTurns.clear();
         burnTurns.clear();
         armorShields.clear();
@@ -1346,7 +1382,10 @@ public class Main extends Game {
             Color oc = omenColor();
             showPopup("OMEN: " + OMEN_NAMES[omen].toUpperCase(), oc.r, oc.g, oc.b, 1.8f);
         }
-        for (int i = 0; i < enemies.size; i++) assignEnemyCurse(enemies.get(i));
+        for (int i = 0; i < enemies.size; i++) {
+            assignEnemyCurse(enemies.get(i));
+            assignCaptureCurse(enemies.get(i));
+        }
         if (omen == OMEN_BLOOD_MOON) for (int i = 0; i < enemies.size; i++) forceEnemyCurse(enemies.get(i));
         if (enemyCurses.size > 0) playSfx(curseSound);
         if (hasCurse(Relic.Curse.HARDENED)) {
@@ -1374,6 +1413,12 @@ public class Main extends Game {
             for (int i = 0; i < enemies.size; i++) poisonTurns.put(enemies.get(i), 3);
         }
         startEnemyDrop();
+    }
+
+    private void assignCaptureCurse(Enemy enemy) {
+        if (enemy == null) return;
+        CaptureCurse[] pool = CaptureCurse.values();
+        captureCurses.put(enemy, pool[random.nextInt(pool.length)]);
     }
 
     // Curses get more common the deeper you go (25% in room 1, +5% per room, max 75%)
@@ -2103,6 +2148,13 @@ public class Main extends Game {
 
             message("Frail! +1 damage!", 1.2f);
         }
+        Integer glass = glassedTurns.get(enemy);
+        if (glass != null && glass > 0) {
+            amount += 1;
+            if (glass - 1 <= 0) glassedTurns.remove(enemy);
+            else glassedTurns.put(enemy, glass - 1);
+            spawnFloat("+1 GLASS", tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 42f, .55f, .85f, 1f);
+        }
         int dealt = Math.min(amount, Math.max(0, enemy.getHealth()));
         boolean died = enemy.takeDamage(amount);
         if (dealt > 0) spawnFloat("-" + dealt, tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 20f, fr, fg, fb);
@@ -2110,6 +2162,9 @@ public class Main extends Game {
             EnemyCurse curse = enemyCurses.get(enemy);
             Integer pz = poisonTurns.get(enemy);
             enemyCurses.remove(enemy);
+            captureCurses.remove(enemy);
+            stunnedTurns.remove(enemy);
+            glassedTurns.remove(enemy);
             poisonTurns.remove(enemy);
             burnTurns.remove(enemy);
             playSfx(enemyDeathSound);
@@ -2200,7 +2255,7 @@ public class Main extends Game {
         int x = player.getX() + dx, y = player.getY() + dy;
         while (x >= 0 && x < Player.BOARD_SIZE && y >= 0 && y < Player.BOARD_SIZE) {
             Enemy e = getEnemyAt(x, y, null);
-            if (e != null) return e;
+            if (e != null && captureCurses.get(e) != CaptureCurse.ARROWPROOF) return e;
             if (x == tx && y == ty) break;
             x += dx;
             y += dy;
@@ -2383,12 +2438,19 @@ public class Main extends Game {
         }
         bestCombo = Math.max(bestCombo, captureCombo);
         // ... your existing capture rewards ...
-        if (captureCombo >= 5)
-            showPopup("x" + captureCombo + " COMBO!", 1f, .35f, .2f, 1.0f);
-        else if (captureCombo >= 3)
-            showPopup("x" + captureCombo + " COMBO!", 1f, .85f, .25f, 1.0f);
-        else if (captureCombo >= 2)
-            showPopup("x" + captureCombo + " COMBO", .6f, .85f, 1f, 1.0f);
+        if (captureCombo >= 2) {
+            if (blitzMode) {
+                blitzLastLabel = "CHAIN x" + captureCombo;
+                blitzLastLabelTimer = 1.15f;
+                blitzScorePulse = Math.max(blitzScorePulse, .65f);
+            } else if (captureCombo >= 5) {
+                showPopup("x" + captureCombo + " COMBO!", 1f, .35f, .2f, 1.0f);
+            } else if (captureCombo >= 3) {
+                showPopup("x" + captureCombo + " COMBO!", 1f, .85f, .25f, 1.0f);
+            } else {
+                showPopup("x" + captureCombo + " COMBO", .6f, .85f, 1f, 1.0f);
+            }
+        }
         if (frenzyTurns > 0) {
             gold += 5;
             spawnFloat("+5g", tileCenterX(player.getX()), tileCenterY(player.getY()) + 70f, 1f, .8f, .3f);
@@ -2582,7 +2644,7 @@ public class Main extends Game {
         shapeRenderer.end();
 
         batch.begin();
-        font.getData().setScale(.52f);
+        font.getData().setScale(.62f);
         font.setColor(new Color(.95f, .80f, .30f, 1f));
         font.draw(batch, "OBJECTIVE", x + 12f, y + panelH - 16f);
 
@@ -2670,7 +2732,7 @@ public class Main extends Game {
             if (line1.length() > 8) line1 = line1.substring(0, 8);
             if (line2.length() > 8) line2 = line2.substring(0, 8);
 
-            font.getData().setScale(.30f);
+            font.getData().setScale(.40f);
             font.setColor(new Color(.18f, .12f, .08f, 1f));
             tipLayout.setText(font, relic.getName().substring(0, 1));
             font.draw(batch, relic.getName().substring(0, 1), rx + 25f - tipLayout.width / 2f,
@@ -2681,7 +2743,7 @@ public class Main extends Game {
             font.draw(batch, line1, rx + 48f, relicY + 42f);
             if (!line2.isEmpty()) font.draw(batch, line2, rx + 48f, relicY + 27f);
 
-            font.getData().setScale(.25f);
+            font.getData().setScale(.34f);
             font.setColor(new Color(.60f, .65f, .76f, 1f));
             font.draw(batch, "RELIC", rx + 48f, relicY + 12f);
         }
@@ -2689,10 +2751,10 @@ public class Main extends Game {
 
         // ----- SCORE BREAKDOWN -----
         if (blitzLastResult != null && blitzBreakdownTimer > 0f) {
-            float bw = Math.min(270f, Math.max(210f, w * .25f));
-            float bh = Math.min(390f, h - 230f);
+            float bw = Math.min(300f, Math.max(235f, w * .30f));
+            float bh = Math.min(235f, Math.max(170f, h * .28f));
             float bx = w - bw - 12f;
-            float by = 120f;
+            float by = h - relicCardH - bh - 28f;
 
             shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             shapeRenderer.setColor(.035f, .045f, .075f, .96f);
@@ -2702,22 +2764,22 @@ public class Main extends Game {
             shapeRenderer.end();
 
             batch.begin();
-            font.getData().setScale(.48f);
+            font.getData().setScale(.62f);
             font.setColor(new Color(1f, .80f, .28f, 1f));
             font.draw(batch, blitzLastResult.label, bx + 12f, by + bh - 18f);
 
-            font.getData().setScale(.30f);
+            font.getData().setScale(.40f);
             font.setColor(new Color(.60f, .66f, .78f, 1f));
             font.draw(batch, "SCORE BREAKDOWN", bx + 12f, by + bh - 38f);
 
             float ty = by + bh - 60f;
-            float row = 19f;
-            int maxRows = Math.max(5, Math.min(13, (int)((bh - 105f) / row)));
+            float row = 23f;
+            int maxRows = Math.max(4, Math.min(7, (int)((bh - 105f) / row)));
             int shown = Math.min(maxRows, blitzLastResult.components.size());
 
             for (int i = 0; i < shown; i++) {
                 BlitzScore.Component c = blitzLastResult.components.get(i);
-                font.getData().setScale(.29f);
+                font.getData().setScale(.38f);
                 font.setColor(new Color(.82f, .85f, .92f, 1f));
                 String label = c.label;
                 if (label.length() > 23) label = label.substring(0, 23);
@@ -2731,24 +2793,24 @@ public class Main extends Game {
             }
 
             if (blitzLastResult.components.size() > shown) {
-                font.getData().setScale(.25f);
+                font.getData().setScale(.34f);
                 font.setColor(new Color(.55f, .60f, .70f, 1f));
                 font.draw(batch, "+" + (blitzLastResult.components.size() - shown) + " more...", bx + 12f, ty);
                 ty -= row;
             }
 
-            font.getData().setScale(.30f);
+            font.getData().setScale(.40f);
             font.setColor(new Color(.58f, .63f, .72f, 1f));
             font.draw(batch, "RAW", bx + 12f, by + 52f);
-            font.getData().setScale(.44f);
+            font.getData().setScale(.52f);
             font.setColor(Color.WHITE);
             font.draw(batch, String.format("%,d", blitzLastResult.basePoints), bx + 52f, by + 52f);
 
-            font.getData().setScale(.30f);
+            font.getData().setScale(.40f);
             font.setColor(new Color(1f, .55f, .28f, 1f));
             font.draw(batch, "x" + blitzLastResult.multiplier, bx + bw - 78f, by + 52f);
 
-            font.getData().setScale(.52f);
+            font.getData().setScale(.62f);
             font.setColor(new Color(1f, .84f, .30f, 1f));
             String finalText = "+" + String.format("%,d", blitzLastResult.points);
             tipLayout.setText(font, finalText);
@@ -2790,7 +2852,7 @@ public class Main extends Game {
 
         float baseY = panelY + 67f;
 
-        font.getData().setScale(.76f + blitzScorePulse * .10f);
+        font.getData().setScale(.92f + blitzScorePulse * .12f);
         font.setColor(new Color(1f, .84f, .30f, 1f));
         String scoreText = String.format("%,d", Math.round(blitzHudScore));
         font.draw(batch, scoreText, panelX + 16f, baseY);
@@ -2799,9 +2861,14 @@ public class Main extends Game {
         font.setColor(new Color(.65f, .68f, .78f, 1f));
         font.draw(batch, "SCORE", panelX + 18f, panelY + 19f);
 
-        font.getData().setScale(.68f);
+        font.getData().setScale(.78f);
         font.setColor(Color.WHITE);
         font.draw(batch, "x" + blitzManager.getMultiplier(), panelX + panelW * .40f, baseY);
+        if (blitzLastLabelTimer > 0f) {
+            font.getData().setScale(.62f);
+            font.setColor(new Color(1f, .72f, .22f, 1f));
+            font.draw(batch, blitzLastLabel, panelX + panelW * .40f, panelY + 22f);
+        }
         font.getData().setScale(.28f);
         font.setColor(new Color(.65f, .68f, .78f, 1f));
         font.draw(batch, "MULT", panelX + panelW * .40f + 2f, panelY + 19f);
@@ -3308,7 +3375,7 @@ public class Main extends Game {
         }
         // NORMAL TEXT PAGES
         else {
-            float scale = h < 600f ? .85f : .9f;
+            float scale = h < 600f ? 1.00f : 1.08f;
             float y = top;
 
             font.getData().setScale(scale);
@@ -4766,8 +4833,8 @@ public class Main extends Game {
             message("Not enough mana! (" + mana + "/" + manaCost(spell) + ")", 1.5f);
             return;
         }
-        if (spell == Spell.CLOAK) {
-            if (invisibleTurns > 0) {
+        if (spell == Spell.CLOAK || spell == Spell.SHIELD || spell == Spell.CLEANSE) {
+            if (spell == Spell.CLOAK && invisibleTurns > 0) {
                 message("Already invisible!", 1.2f);
                 return;
             }
@@ -4816,6 +4883,7 @@ public class Main extends Game {
     }
 
     private void playCardWithModifier(Card card, boolean captured) {
+        if (blitzMode && blitzManager != null) blitzManager.cardPlayed();
         CardModifier modifier = cardModifiers.get(card);
         boolean echo = card.hasEcho() && random.nextFloat() < 0.35f;
         boolean free = (modifier == CardModifier.FRUGAL && random.nextBoolean()) || echo;
@@ -4893,11 +4961,23 @@ public class Main extends Game {
             return;
         }
         mana -= cost;
+        if (blitzMode && blitzManager != null) blitzManager.spellCast();
 
         if (spell == Spell.CLOAK) {
             invisibleTurns = 2;
             spawnBurst(tileCenterX(player.getX()), tileCenterY(player.getY()), 22, .6f, .4f, .9f, 30f);
             spawnShockwave(player.getX(), player.getY(), 1.2f);
+        } else if (spell == Spell.SHIELD) {
+            defense = Math.min(MAX_DEFENSE, defense + 2);
+            spawnBurst(tileCenterX(player.getX()), tileCenterY(player.getY()), 18, .35f, .65f, 1f, 40f);
+            spawnFloat("+2 DEF", tileCenterX(player.getX()), tileCenterY(player.getY()) + 34f, .45f, .70f, 1f);
+        } else if (spell == Spell.CLEANSE) {
+            poisonTurns.clear();
+            burnTurns.clear();
+            confusedUntil.clear();
+            invisibleTurns = 0;
+            message("CLEANSED!", 1.5f);
+            spawnBurst(tileCenterX(player.getX()), tileCenterY(player.getY()), 20, .55f, .95f, 1f, 50f);
         } else if (isWarded(target)) {
             spawnBurst(tileCenterX(target.getX()), tileCenterY(target.getY()), 10, .7f, .7f, .8f, 0f);
             playSfx(errorSound);
@@ -4936,6 +5016,20 @@ public class Main extends Game {
             relocateEnemyRandomly(target);
             spawnBurst(tileCenterX(target.getX()), tileCenterY(target.getY()), 16, 1f, .9f, .3f, 20f);
             confusedUntil.put(target, uiTime + 2.5f);
+        } else if (spell == Spell.STUN) {
+            stunnedTurns.put(target, 2);
+            spawnBurst(tileCenterX(target.getX()), tileCenterY(target.getY()), 14, .45f, .75f, 1f, 25f);
+        } else if (spell == Spell.ICE) {
+            stunnedTurns.put(target, 1);
+            spawnBurst(tileCenterX(target.getX()), tileCenterY(target.getY()), 14, .45f, .85f, 1f, 25f);
+        } else if (spell == Spell.FREEZE) {
+            freezeTurns = 1;
+            spawnShockwave(player.getX(), player.getY(), 2.5f);
+        } else if (spell == Spell.GLASSING) {
+            glassedTurns.put(target, 2);
+            stunnedTurns.put(target, Math.max(2, stunnedTurns.get(target) == null ? 0 : stunnedTurns.get(target)));
+            spawnBurst(tileCenterX(target.getX()), tileCenterY(target.getY()), 18, .65f, .85f, 1f, 15f);
+            message("GLASSED!", 1.3f);
         }
 
         playSpellSound(spell);
@@ -4972,15 +5066,20 @@ public class Main extends Game {
                 || e.getY() != player.getY()) {
                 continue;
             }
-            if (e.getMovementType()==Card.MovementType.PAWN){
-                e.setX(e.getX()-1);
-            }
-
             EnemyCurse curse = enemyCurses.get(e);
+            CaptureCurse captureCurse = captureCurses.get(e);
             Card cc = captureCard;
             int captureHealthPercent = Math.round(
                 100f * e.getHealth() / Math.max(1, e.getMaxHealth())
             );
+
+            if (captureCurse != null && captureCurse.blocks(captureCard, invisibleTurns > 0, rollCaptureDamage())) {
+                message(captureCurse.getLabel() + "! This enemy resists that capture.", 1.5f);
+                spawnFloat(captureCurse.getShortLabel(), tileCenterX(e.getX()), tileCenterY(e.getY()) + 42f, .85f, .55f, .30f);
+                breakCombo();
+                moveEnemies();
+                return false;
+            }
 
             // Critical capture happens first.
             boolean critical = invisibleTurns > 0 ? assassinate(e) : rollCriticalCapture(e);
@@ -5054,6 +5153,11 @@ public class Main extends Game {
                 break;
             }
         }
+        if (selectedSpell == Spell.SHIELD || selectedSpell == Spell.CLEANSE) {
+            castSpell(selectedSpell, null);
+            selectedSpell = null;
+            return;
+        }
         if (target == null) {
             message("Choose an enemy", 1.2f);
             return;
@@ -5067,6 +5171,13 @@ public class Main extends Game {
         applyEnemyStatuses();
         if (allEnemiesDefeated()) return;
 
+        if (freezeTurns > 0) {
+            freezeTurns--;
+            playSfx(augmentSound);
+            message("FREEZE! Enemies lose their turn.", 1.2f);
+            return;
+        }
+
         // Cloak: enemies can't see you, so they hold still (Hunters still can)
         boolean cloaked = invisibleTurns > 0;
         if (cloaked) {
@@ -5079,6 +5190,12 @@ public class Main extends Game {
             if (!e.isAlive()) continue;
             if (cloaked && enemyCurses.get(e) != EnemyCurse.HUNTER) continue;
 
+            Integer stun = stunnedTurns.get(e);
+            if (stun != null && stun > 0) {
+                if (stun - 1 <= 0) stunnedTurns.remove(e);
+                else stunnedTurns.put(e, stun - 1);
+                continue;
+            }
             int startX = e.getX(), startY = e.getY();
             int moves = enemyMoveCount(e);
 
@@ -5689,7 +5806,14 @@ public class Main extends Game {
             fx = hit.getX();
             fy = hit.getY();
         }
-        if (hit != null && hit.isAlive()) damageEnemy(hit, 999);
+        if (hit != null && hit.isAlive()) {
+            if (captureCurses.get(hit) == CaptureCurse.ARROWPROOF) {
+                spawnFloat("ARROWPROOF", tileCenterX(hit.getX()), tileCenterY(hit.getY()) + 34f, .85f, .55f, .25f);
+                message("Arrowproof! The arrow fizzled.", 1.2f);
+            } else {
+                damageEnemy(hit, 999);
+            }
+        }
         pendingHitEnemy = null;
 
         if (arrowBouncesLeft > 0 && hit != null) {
@@ -5913,6 +6037,8 @@ public class Main extends Game {
         lines.add("HP: " + e.getHealth() + "/" + e.getMaxHealth());
         EnemyCurse curse = enemyCurses.get(e);
         if (curse != null) lines.add(curse.getLabel() + ": " + curse.getDescription());
+        CaptureCurse captureCurse = captureCurses.get(e);
+        if (captureCurse != null) lines.add("Capture: " + captureCurse.getDescription());
         Integer shield = armorShields.get(e);
         if (shield != null && shield > 0) lines.add("Shield: " + shield);
         Integer pz = poisonTurns.get(e);

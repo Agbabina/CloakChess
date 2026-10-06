@@ -7,7 +7,11 @@ public enum Spell {
     CONFUSE("Confuse", "Confuses the selected enemy for 1 turn", 50),
     CLOAK("Cloak", "Invisible for 2 turns: enemies hold still", 55),
     STUN("Stun", "Selected enemy cannot move for 2 turns", 40),
-    FREEZE("Freeze", "Freezes the board, all enemies cannot move for 2 turns", 60);
+    ICE("Ice", "Selected enemy cannot move for 1 turn", 35),
+    FREEZE("Freeze", "All enemies cannot move for 1 turn", 55),
+    GLASSING("Glassing", "Encases the target: cannot move for 2 turns and takes +1 damage", 65),
+    SHIELD("Shield", "Gain 2 DEF immediately", 45),
+    CLEANSE("Cleanse", "Remove your poison, burn, confusion and negative status", 40);
 
     private final String label;
     private final String description;
