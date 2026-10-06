@@ -140,6 +140,7 @@ public class BlitzManager {
             cursed, movement, assassination, enemyHealthPercent, gold, room, timeRemaining
         );
 
+        String originalLabel = result.label;
         if (isTimeGambleActive()) {
             int bonus = result.points;
             score.addBonusScore(bonus);
@@ -158,7 +159,7 @@ public class BlitzManager {
         addTime(1f, "CAPTURE");
         if (activeRelics.contains(BlitzRelic.BLOOD_CLOCK)) addTime(1f, "BLOOD CLOCK");
         if (activeRelics.contains(BlitzRelic.TIME_SHARD) &&
-            (result.label.contains("ASSASSINATION") || result.label.contains("FIRST BLOOD") || result.label.contains("CURSED")))
+            (originalLabel.contains("ASSASSINATION") || originalLabel.contains("FIRST BLOOD") || originalLabel.contains("CURSED")))
             addTime(2f, "TIME SHARD");
         if (activeRelics.contains(BlitzRelic.CHRONO_COG) && score.getTotalCaptures() % 5 == 0)
             addTime(3f, "CHRONO COG");
