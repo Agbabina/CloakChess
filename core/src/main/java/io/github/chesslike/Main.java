@@ -2704,7 +2704,6 @@ public class Main extends Game {
             batch.begin();
             font.getData().setScale(.48f);
             font.setColor(new Color(1f, .80f, .28f, 1f));
-            batch.draw(circleTex, 0, 0, 0, 0); // keep SpriteBatch state valid; no visible draw
             font.draw(batch, blitzLastResult.label, bx + 12f, by + bh - 18f);
 
             font.getData().setScale(.30f);
