@@ -701,9 +701,28 @@ public class Main extends Game {
         RewardScreen.loadTextures();
         shapeRenderer = new ShapeRenderer();
 
-        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("Font.ttf"));
-        FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
-        parameter.size = 22;
+        // Readable Pixel Operator UI font.
+        // Prefer the Pixel Operator font when it is present, but keep Font.ttf
+        // as a fallback so older/local copies of the project still launch.
+        String fontFile = "PixelOperator-Bold.ttf";
+        if (!Gdx.files.internal(fontFile).exists()) {
+            fontFile = "PixelOperator.ttf";
+        }
+        if (!Gdx.files.internal(fontFile).exists()) {
+            fontFile = "Font.ttf";
+        }
+
+        FreeTypeFontGenerator generator =
+            new FreeTypeFontGenerator(Gdx.files.internal(fontFile));
+
+        FreeTypeFontGenerator.FreeTypeFontParameter parameter =
+            new FreeTypeFontGenerator.FreeTypeFontParameter();
+
+        // Generate the glyphs large instead of enlarging a tiny bitmap font.
+        parameter.size = 32;
+        parameter.minFilter = Texture.TextureFilter.Nearest;
+        parameter.magFilter = Texture.TextureFilter.Nearest;
+
         font = generator.generateFont(parameter);
         generator.dispose();
 
