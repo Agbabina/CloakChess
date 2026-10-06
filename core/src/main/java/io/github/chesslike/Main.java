@@ -2568,6 +2568,14 @@ public class Main extends Game {
         int seconds = (int)Math.ceil(blitzManager.getTimeRemaining());
         font.setColor(seconds <= 20 ? new Color(1f, .25f, .25f, 1f) : Color.WHITE);
         font.draw(batch, "TIME " + (seconds / 60) + ":" + String.format("%02d", seconds % 60), 18f, h - 96f);
+        if (blitzManager.getCurrentOmen() != null) {
+            font.setColor(new Color(1f, .65f, .25f, 1f));
+            font.getData().setScale(.48f);
+            font.draw(batch, "OMEN: " + blitzManager.getCurrentOmen().getName(), 18f, h - 116f);
+            font.setColor(new Color(.70f, .73f, .80f, 1f));
+            font.getData().setScale(.38f);
+            font.draw(batch, blitzManager.getCurrentOmen().getDescription(), 18f, h - 134f);
+        }
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
         batch.end();
