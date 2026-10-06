@@ -20,6 +20,11 @@ public class EnemyGenerator {
      * difficulty controls how nasty the room can become.
      */
     public Array<Enemy> generateEnemies(int difficulty, int playerX, int playerY) {
+        return generateEnemies(difficulty, playerX, playerY, null);
+    }
+
+    /** Blitz-aware generation. Curses are assigned automatically using the active omen. */
+    public Array<Enemy> generateEnemies(int difficulty, int playerX, int playerY, BlitzOmen omen) {
 
         Array<Enemy> enemies = new Array<>();
 
@@ -47,6 +52,10 @@ public class EnemyGenerator {
             Card.MovementType type = generateEnemyType(difficulty);
 
             Enemy enemy = createEnemy(x, y, type, difficulty);
+
+            if (omen != null) {
+                enemy.setCurse(BlitzEnemyCurses.roll(difficulty, omen));
+            }
 
             enemies.add(enemy);
         }
