@@ -419,6 +419,7 @@ public class Main extends Game {
     private Array<Relic> ownedRelics = new Array<>();
     private Spell selectedSpell;
     private ShopScreen shopScreen;
+    private BlitzRelicShopScreen blitzRelicShop;
     private BlitzManager blitzManager;
     private boolean blitzMode = false;
     private boolean blitzLaunch = false;
@@ -682,6 +683,7 @@ public class Main extends Game {
         rewardScreen = new RewardScreen(batch, shapeRenderer, font);
         gameOverScreen = new GameOverScreen(batch, shapeRenderer, font);
         shopScreen = new ShopScreen(batch, shapeRenderer, font);
+        blitzRelicShop = new BlitzRelicShopScreen(batch, shapeRenderer, font);
         blitzManager = new BlitzManager();
 
         resetPlayerStats();
@@ -4346,6 +4348,10 @@ public class Main extends Game {
             }
             return;
         }
+        if (blitzRelicShop.isVisible()) {
+            handleBlitzRelicShopInput();
+            return;
+        }
         if (shopScreen.isVisible()) {
             handleShopInput();
             return;
@@ -5171,8 +5177,13 @@ public class Main extends Game {
         eventMessage = "ROOM " + difficulty;
         messageTimer = 2f;
         playSfx(roomStartSound);
-        if (difficulty % 3 == 0) openShop();
-        else maybeOpenEvent();
+        if (blitzMode && difficulty % 2 == 0) {
+            openBlitzRelicShop();
+        } else if (difficulty % 3 == 0) {
+            openShop();
+        } else {
+            maybeOpenEvent();
+        }
         autosave();
     }
 
@@ -5267,6 +5278,61 @@ public class Main extends Game {
         playSfx(shopOpenSound);
         shopWasOpenedThisRoom = true;
         message("SHOP", 2f);
+    }
+
+    private void openBlitzRelicShop() {
+        if (!blitzMode || blitzManager == null || !blitzManager.isActive()) return;
+        blitzManager.refreshRelicShop();
+        blitzRelicShop.show(blitzManager.getRelicShopOffers());
+        message("BLITZ RELIC FORGE", 2f);
+        playSfx(shopOpenSound);
+    }
+
+    private void handleBlitzRelicShopInput() {
+        if (!Gdx.input.justTouched()) return;
+        float x = Gdx.input.getX();
+        float y = Gdx.graphics.getHeight() - Gdx.input.getY();
+        int result = blitzRelicShop.handleClick(x, y);
+
+        if (result == BlitzRelicShopScreen.LEAVE) {
+            clickSound.play();
+            blitzRelicShop.hide();
+            message("Forge closed", 1.2f);
+            return;
+        }
+        if (result == BlitzRelicShopScreen.NONE) return;
+
+        BlitzRelic relic = blitzRelicShop.getOffer(result);
+        if (relic == null) return;
+
+        if (blitzManager.hasRelic(relic)) {
+            blitzRelicShop.setMessage("Already active");
+            return;
+        }
+
+        if (blitzManager.getActiveRelics().size() >= 6) {
+            blitzRelicShop.setMessage("Relic slots full (6/6)");
+            playSfx(errorSound);
+            return;
+        }
+
+        int cost = blitzManager.getRelicCost(relic);
+        if (gold < cost) {
+            blitzRelicShop.setMessage("Not enough gold");
+            playSfx(errorSound);
+            return;
+        }
+
+        gold -= cost;
+        if (blitzManager.buyRelic(relic)) {
+            blitzRelicShop.setMessage(relic.getName() + " activated! +4s");
+            playSfx(blessingSound);
+            autosave();
+        } else {
+            gold += cost;
+            blitzRelicShop.setMessage("Could not activate relic");
+            playSfx(errorSound);
+        }
     }
 
     private void handleShopInput() {
@@ -5847,9 +5913,20 @@ public class Main extends Game {
         }
 
         for (Card c : hand) c.update(delta);
-        if (!gameOverScreen.isVisible() && !shopScreen.isVisible()) updateCardHover();
+        if (!gameOverScreen.isVisible() && !shopScreen.isVisible() && !blitzRelicShop.isVisible()) updateCardHover();
         checkEnemyLandings();
         handleInput();
+        if (blitzMode && blitzManager != null) {
+            float timeDelta = blitzManager.consumeLastTimeDelta();
+            if (Math.abs(timeDelta) > 0.01f) {
+                String sign = timeDelta > 0f ? "+" : "";
+                showPopup(sign + String.format("%.1f", timeDelta) + "s " + blitzManager.getLastTimeReason(),
+                    timeDelta > 0f ? .35f : 1f,
+                    timeDelta > 0f ? 1f : .35f,
+                    timeDelta > 0f ? .55f : .35f,
+                    .75f);
+            }
+        }
         updateMessage(delta);
         updateArrowAnimation(delta);
         updateMoveAnim(delta);
@@ -5902,6 +5979,7 @@ public class Main extends Game {
         renderTooltip();
         rewardScreen.render(hand);
         if (shopScreen.isVisible()) shopScreen.render(gold);
+        if (blitzRelicShop.isVisible()) blitzRelicShop.render(gold, blitzManager);
         if (evtVisible) renderEvent();
         gameOverScreen.render();
         renderPopup();
