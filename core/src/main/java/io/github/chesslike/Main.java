@@ -4352,10 +4352,6 @@ public class Main extends Game {
             handleBlitzRelicShopInput();
             return;
         }
-        if (blitzRelicShop.isVisible()) {
-            handleBlitzRelicShopInput();
-            return;
-        }
         if (shopScreen.isVisible()) {
             handleShopInput();
             return;
