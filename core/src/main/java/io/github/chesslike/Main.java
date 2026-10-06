@@ -422,6 +422,10 @@ public class Main extends Game {
     private BlitzManager blitzManager;
     private boolean blitzMode = false;
     private boolean blitzLaunch = false;
+    private float blitzHudScore = 0f;
+    private float blitzScorePulse = 0f;
+    private String blitzLastLabel = "";
+    private float blitzLastLabelTimer = 0f;
 
     // Main menu
     private boolean menuVisible = true;
@@ -1323,7 +1327,16 @@ public class Main extends Game {
         floats.clear();
         invisibleTurns = 0;
         frenzyTurns = 0;
-        rollOmen();
+        if (blitzMode) {
+            omen = OMEN_NONE;
+            BlitzOmen bo = blitzManager.getCurrentOmen();
+            if (bo != null) {
+                showPopup("BLITZ OMEN: " + bo.getName().toUpperCase(),
+                    1f, .65f, .25f, 1.8f);
+            }
+        } else {
+            rollOmen();
+        }
         if (omen != OMEN_NONE) {
             Color oc = omenColor();
             showPopup("OMEN: " + OMEN_NAMES[omen].toUpperCase(), oc.r, oc.g, oc.b, 1.8f);
@@ -2314,11 +2327,50 @@ public class Main extends Game {
         }
     }
 
-    private void registerCapture() {
+    private void registerCapture(Enemy capturedEnemy, Card captureCard, EnemyCurse captureCurse, boolean assassination) {
         captureCombo++;
+
         if (blitzMode && blitzManager != null) {
-            blitzManager.capture();
+            int healthPercent = capturedEnemy == null ? 100 :
+                Math.round(100f * capturedEnemy.getHealth() / Math.max(1, capturedEnemy.getMaxHealth()));
+            String movement = captureCard == null ? "" : captureCard.getMovementType().name();
+
+            BlitzScore.Result result = blitzManager.capture(
+                captureCurse != null,
+                movement,
+                assassination,
+                healthPercent,
+                gold,
+                difficulty
+            );
+
+            blitzScorePulse = 1f;
+            blitzLastLabel = result.label;
+            blitzLastLabelTimer = 1.15f;
+
+            float cx = tileCenterX(player.getX());
+            float cy = tileCenterY(player.getY());
+            spawnFloat(
+                "+" + result.points + "  " + result.label,
+                cx,
+                cy + 92f,
+                result.points >= 1000 ? 1f : .9f,
+                result.points >= 1000 ? .78f : .62f,
+                .25f
+            );
+
+            if (result.multiplierUp) {
+                showPopup("MULTIPLIER UP!  x" + result.multiplier,
+                    1f, .78f, .22f, 1.0f);
+                startShake(.12f, 3f);
+            } else if (result.points >= 1000) {
+                showPopup("+" + result.points + "  " + result.label,
+                    1f, .78f, .22f, .85f);
+                startShake(.08f, 2.5f);
+            }
         }
+
+        runBonusSouls++;
         runBonusSouls++;
         int roll = random.nextInt(0, 100);
         if (roll>80){
@@ -2394,6 +2446,7 @@ public class Main extends Game {
     }
 
     private void breakCombo() {
+        if (blitzMode && blitzManager != null) blitzManager.breakStreak();
         if (captureCombo > 0) {
             captureCombo = 0;
             if (objectiveType == OBJECTIVE_COMBO) objectiveProgress = Math.max(objectiveProgress, bestCombo);
@@ -2556,26 +2609,104 @@ public class Main extends Game {
 
     private void renderBlitzHud() {
         if (!blitzMode || blitzManager == null) return;
+
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
-        batch.begin();
-        font.getData().setScale(.62f);
-        font.setColor(new Color(1f, .82f, .25f, 1f));
-        font.draw(batch, "BLITZ", 18f, h - 22f);
-        font.setColor(Color.WHITE);
-        font.draw(batch, "SCORE " + blitzManager.getScore(), 18f, h - 48f);
-        font.draw(batch, "x" + blitzManager.getMultiplier() + "  STREAK " + blitzManager.getStreak(), 18f, h - 72f);
-        int seconds = (int)Math.ceil(blitzManager.getTimeRemaining());
-        font.setColor(seconds <= 20 ? new Color(1f, .25f, .25f, 1f) : Color.WHITE);
-        font.draw(batch, "TIME " + (seconds / 60) + ":" + String.format("%02d", seconds % 60), 18f, h - 96f);
-        if (blitzManager.getCurrentOmen() != null) {
-            font.setColor(new Color(1f, .65f, .25f, 1f));
-            font.getData().setScale(.48f);
-            font.draw(batch, "OMEN: " + blitzManager.getCurrentOmen().getName(), 18f, h - 116f);
-            font.setColor(new Color(.70f, .73f, .80f, 1f));
-            font.getData().setScale(.38f);
-            font.draw(batch, blitzManager.getCurrentOmen().getDescription(), 18f, h - 134f);
+        float delta = Gdx.graphics.getDeltaTime();
+
+        float target = blitzManager.getScore();
+        float catchup = 1f - (float)Math.pow(0.001, delta);
+        blitzHudScore = MathUtils.lerp(blitzHudScore, target, catchup);
+        if (Math.abs(blitzHudScore - target) < 0.5f) blitzHudScore = target;
+
+        blitzScorePulse = Math.max(0f, blitzScorePulse - delta * 3.5f);
+        blitzLastLabelTimer = Math.max(0f, blitzLastLabelTimer - delta);
+
+        float panelW = Math.min(650f, w - 28f);
+        float panelH = 88f;
+        float panelX = (w - panelW) * .5f;
+        float panelY = 14f;
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(.035f, .045f, .075f, .97f);
+        shapeRenderer.rect(panelX, panelY, panelW, panelH);
+        shapeRenderer.setColor(.18f, .20f, .28f, 1f);
+        shapeRenderer.rect(panelX, panelY + panelH - 3f, panelW, 3f);
+
+        float relicSize = 34f;
+        float relicGap = 7f;
+        float relicY = panelY + panelH + 7f;
+        float relicStart = panelX + 12f;
+
+        for (int i = 0; i < blitzManager.getActiveRelics().size(); i++) {
+            float rx = relicStart + i * (relicSize + relicGap);
+            shapeRenderer.setColor(.12f, .10f, .18f, .98f);
+            shapeRenderer.rect(rx, relicY, relicSize, relicSize);
+            shapeRenderer.setColor(1f, .72f, .22f, .9f);
+            shapeRenderer.rect(rx, relicY + relicSize - 3f, relicSize, 3f);
         }
+        shapeRenderer.end();
+
+        batch.begin();
+
+        for (int i = 0; i < blitzManager.getActiveRelics().size(); i++) {
+            BlitzRelic relic = blitzManager.getActiveRelics().get(i);
+            float rx = relicStart + i * (relicSize + relicGap);
+
+            font.getData().setScale(.34f);
+            font.setColor(new Color(1f, .78f, .30f, 1f));
+            String name = relic.getName().toUpperCase();
+            if (name.length() > 6) name = name.substring(0, 6);
+            tipLayout.setText(font, name);
+            font.draw(batch, name, rx + (relicSize - tipLayout.width) / 2f, relicY + 20f);
+
+            font.getData().setScale(.27f);
+            font.setColor(new Color(.72f, .75f, .84f, 1f));
+            font.draw(batch, "RELIC", rx + 7f, relicY + 9f);
+        }
+
+        float baseY = panelY + 57f;
+
+        font.getData().setScale(.72f + blitzScorePulse * .08f);
+        font.setColor(new Color(1f, .84f, .30f, 1f));
+        String scoreText = String.format("%,d", Math.round(blitzHudScore));
+        font.draw(batch, scoreText, panelX + 16f, baseY);
+        font.getData().setScale(.30f);
+        font.setColor(new Color(.65f, .68f, .78f, 1f));
+        font.draw(batch, "SCORE", panelX + 18f, panelY + 19f);
+
+        font.getData().setScale(.68f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, "x" + blitzManager.getMultiplier(), panelX + panelW * .43f, baseY);
+        font.getData().setScale(.30f);
+        font.setColor(new Color(.65f, .68f, .78f, 1f));
+        font.draw(batch, "MULT", panelX + panelW * .43f + 2f, panelY + 19f);
+
+        font.getData().setScale(.62f);
+        font.setColor(new Color(1f, .55f, .28f, 1f));
+        font.draw(batch, "STREAK " + blitzManager.getStreak(), panelX + panelW * .58f, baseY);
+        font.getData().setScale(.30f);
+        font.setColor(new Color(.65f, .68f, .78f, 1f));
+        font.draw(batch, "CHAIN", panelX + panelW * .58f + 2f, panelY + 19f);
+
+        int seconds = (int)Math.ceil(blitzManager.getTimeRemaining());
+        int mins = seconds / 60;
+        int secs = seconds % 60;
+        font.getData().setScale(.62f);
+        font.setColor(seconds <= 20 ? new Color(1f, .28f, .28f, 1f) : Color.WHITE);
+        font.draw(batch, String.format("%02d:%02d", mins, secs), panelX + panelW - 94f, baseY);
+        font.getData().setScale(.30f);
+        font.setColor(new Color(.65f, .68f, .78f, 1f));
+        font.draw(batch, "TIME", panelX + panelW - 91f, panelY + 19f);
+
+        if (blitzLastLabelTimer > 0f) {
+            float a = MathUtils.clamp(blitzLastLabelTimer * 1.8f, 0f, 1f);
+            font.getData().setScale(.38f);
+            font.setColor(1f, .82f, .35f, a);
+            tipLayout.setText(font, blitzLastLabel);
+            font.draw(batch, blitzLastLabel, (w - tipLayout.width) / 2f, panelY + panelH + 52f);
+        }
+
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
         batch.end();
@@ -3747,6 +3878,10 @@ public class Main extends Game {
         if (blitzMode) {
             blitzManager.start();
             difficulty = 1;
+            blitzHudScore = 0f;
+            blitzScorePulse = 0f;
+            blitzLastLabel = "";
+            blitzLastLabelTimer = 0f;
         } else {
             difficulty = 1;
         }
@@ -4727,7 +4862,7 @@ public class Main extends Game {
                 player.getY()
             );
 
-            registerCapture();
+            registerCapture(e, cc, curse, invisibleTurns > 0);
             refillHandIfNeeded();
 
             groundPound(
@@ -4931,6 +5066,7 @@ public class Main extends Game {
         int dmg = amount - absorbed;
 
         if (dmg > 0) {
+            if (blitzMode && blitzManager != null) blitzManager.breakStreak();
             roomDamageTaken = true;
             updateObjectiveProgress();
 
@@ -4977,6 +5113,13 @@ public class Main extends Game {
         }
         showPopup("ROOM CLEAR!", .4f, 1f, .55f, 1.4f);
         updateObjectiveProgress();
+        if (blitzMode && blitzManager != null) {
+            int roomPoints = blitzManager.roomClear();
+            spawnFloat("+" + roomPoints + " ROOM CLEAR",
+                tileCenterX(player.getX()),
+                tileCenterY(player.getY()) + 96f,
+                1f, .82f, .30f);
+        }
         int reward = 25 + (hasRelic(Relic.Blessing.GOLD_MAGNET) ? 10 : 0) - (hasCurse(Relic.Curse.TOLL) ? 10 : 0);
         reward = Math.max(0, reward);
         if (omen == OMEN_BLOOD_MOON || omen == OMEN_IRON) reward = Math.round(reward * 1.5f);
@@ -5010,6 +5153,7 @@ public class Main extends Game {
 
     private void generateNextRoom() {
         difficulty++;
+        if (blitzMode && blitzManager != null) blitzManager.resetRoom();
         rollPoison();
         for (int i = 0; i < enemies.size; i++) enemies.get(i).dispose();
         shockwaves.clear();
@@ -5693,7 +5837,10 @@ public class Main extends Game {
         if (blitzMode && blitzManager != null && blitzManager.isActive()) {
             blitzManager.update(delta);
             if (!blitzManager.isActive()) {
-                showPopup("BLITZ OVER  SCORE " + blitzManager.getScore(), 1f, .75f, .25f, 3f);
+                BlitzRelic unlocked = blitzManager.getLastUnlockedRelic();
+                String relicText = unlocked == null ? "" : "  •  RELIC: " + unlocked.getName();
+                showPopup("BLITZ OVER  " + String.format("%,d", blitzManager.getScore()) + relicText,
+                    1f, .75f, .25f, 4f);
                 blitzMode = false;
             }
         }
