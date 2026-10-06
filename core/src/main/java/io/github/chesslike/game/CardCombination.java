@@ -54,7 +54,9 @@ public class CardCombination {
         new Recipe(Card.MovementType.PAWN,       Card.MovementType.KNIGHT,     "Dash",       Card.MovementType.DASH,       2),
         new Recipe(Card.MovementType.PAWN,       Card.MovementType.DASH,       "Rook",       Card.MovementType.ROOK,       2),
         new Recipe(Card.MovementType.KNIGHT,     Card.MovementType.ROOK,       "Councillor", Card.MovementType.COUNCILLOR, 2),
-        new Recipe(Card.MovementType.PAWN,       Card.MovementType.CLAUDE,     "Shifter",    Card.MovementType.SHIFTER,    3),
+        new Recipe(Card.MovementType.PAWN,       Card.MovementType.CLAUDE,     "Shifter",       Card.MovementType.SHIFTER,       3),
+        new Recipe(Card.MovementType.CLAUDE,     Card.MovementType.KNIGHT,     "Leaper",        Card.MovementType.LEAPER,        2),
+        new Recipe(Card.MovementType.CLAUDE,     Card.MovementType.BISHOP,     "Two Then Three",Card.MovementType.TWO_THEN_THREE, 2),
     };
 
     /** Returns a new Card if the two cards combine, otherwise null. */
