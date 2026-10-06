@@ -5,6 +5,13 @@ public enum AugmentType {
 
     // Card can be used additional times.
     EXTRA_USES,
+    FURY,
+    MANA_SURGE,
+    VAMPIRIC,
+    GILDED,
+    AEGIS,
+    VENOM,
+    ECHO,
 
     // After using this card, another enemy piece is burned.
     BURN,

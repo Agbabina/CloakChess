@@ -13,19 +13,16 @@ public class ShopScreen {
 
     public static final int NONE = -2;
     public static final int LEAVE = -1;
+    public static final int REROLL = -3;
 
-    public enum Kind {
-        POTION,
-        SPELL,
-        RELIC
-    }
+    public enum Kind { POTION, SPELL, RELIC, AMMO, SELL }
 
     public static class Item {
 
         public final Kind kind;
         public final String name;
         public final String description;
-        public final int cost;
+        public final int cost;      // for SELL this is the payout
         public final Spell spell;   // only for SPELL
         public final Relic relic;   // only for RELIC
         public boolean sold;
@@ -52,12 +49,14 @@ public class ShopScreen {
     private final BitmapFont font;
 
     private boolean visible = false;
+    private int rerollCost = 15;
 
     private final Array<Item> items = new Array<>();
     private final Array<Rectangle> itemRects = new Array<>();
 
     private final Rectangle panel = new Rectangle();
     private final Rectangle leaveRect = new Rectangle();
+    private final Rectangle rerollRect = new Rectangle();
 
     private String message = "";
 
@@ -75,11 +74,12 @@ public class ShopScreen {
     // SHOW / HIDE
     // -----------------------------------------
 
-    public void show(Array<Item> newItems) {
+    public void show(Array<Item> newItems, int rerollCost) {
 
         items.clear();
         items.addAll(newItems);
 
+        this.rerollCost = rerollCost;
         message = "";
         visible = true;
     }
@@ -139,8 +139,13 @@ public class ShopScreen {
 
         float gap = 16f;
 
+        int rows = Math.max(1, (items.size + 1) / 2);
+
         float boxWidth = (panelWidth - 60f - gap) / 2f;
-        float boxHeight = Math.min(130f, (panelHeight - 170f - gap) / 2f);
+        float boxHeight = Math.min(
+            130f,
+            (panelHeight - 170f - (rows - 1) * gap) / rows
+        );
 
         float topY = panel.y + panelHeight - 90f;
 
@@ -167,13 +172,20 @@ public class ShopScreen {
             150f,
             46f
         );
+
+        rerollRect.set(
+            leaveRect.x - 12f - 190f,
+            panel.y + 20f,
+            190f,
+            46f
+        );
     }
 
     // -----------------------------------------
     // CLICK
     // -----------------------------------------
 
-    // Returns an item index, LEAVE, or NONE
+    // Returns an item index, LEAVE, REROLL, or NONE
     public int handleClick(float x, float y) {
 
         if (!visible) {
@@ -184,6 +196,10 @@ public class ShopScreen {
 
         if (leaveRect.contains(x, y)) {
             return LEAVE;
+        }
+
+        if (rerollRect.contains(x, y)) {
+            return REROLL;
         }
 
         for (int i = 0; i < itemRects.size; i++) {
@@ -237,6 +253,8 @@ public class ShopScreen {
 
             if (item.sold) {
                 shapeRenderer.setColor(0.14f, 0.14f, 0.16f, 1f);
+            } else if (item.kind == Kind.SELL) {
+                shapeRenderer.setColor(0.13f, 0.26f, 0.19f, 1f);
             } else if (gold >= item.cost) {
                 shapeRenderer.setColor(0.16f, 0.20f, 0.30f, 1f);
             } else {
@@ -245,6 +263,19 @@ public class ShopScreen {
 
             shapeRenderer.rect(rect.x, rect.y, rect.width, rect.height);
         }
+
+        // Reroll button
+        if (gold >= rerollCost) {
+            shapeRenderer.setColor(0.36f, 0.30f, 0.12f, 1f);
+        } else {
+            shapeRenderer.setColor(0.22f, 0.14f, 0.16f, 1f);
+        }
+        shapeRenderer.rect(
+            rerollRect.x,
+            rerollRect.y,
+            rerollRect.width,
+            rerollRect.height
+        );
 
         // Leave button
         shapeRenderer.setColor(0.22f, 0.42f, 0.28f, 1f);
@@ -309,6 +340,14 @@ public class ShopScreen {
                     rect.x + 12f,
                     rect.y + rect.height - 40f
                 );
+            } else if (item.kind == Kind.SELL) {
+                font.setColor(new Color(0.45f, 1f, 0.55f, 1f));
+                font.draw(
+                    batch,
+                    "PAYS: " + item.cost,
+                    rect.x + 12f,
+                    rect.y + rect.height - 40f
+                );
             } else {
                 font.setColor(
                     gold >= item.cost
@@ -347,6 +386,15 @@ public class ShopScreen {
             font.setColor(new Color(0.30f, 0.80f, 1f, 1f));
             font.draw(batch, message, panel.x + 30f, panel.y + 55f);
         }
+
+        font.getData().setScale(0.65f);
+        font.setColor(Color.WHITE);
+        font.draw(
+            batch,
+            "REROLL " + rerollCost + "g",
+            rerollRect.x + 24f,
+            rerollRect.y + 31f
+        );
 
         font.getData().setScale(0.8f);
         font.setColor(Color.WHITE);

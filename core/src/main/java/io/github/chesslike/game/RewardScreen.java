@@ -8,12 +8,8 @@ import com.badlogic.gdx.graphics.g2d.NinePatch;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
-
-import io.github.chesslike.game.Augment;
-import io.github.chesslike.game.AugmentType;
-import io.github.chesslike.game.Card;
 
 import java.util.Random;
 
@@ -70,7 +66,8 @@ public class RewardScreen {
         Card.MovementType.ROOK,
         Card.MovementType.QUEEN,
         Card.MovementType.PAWN,
-        Card.MovementType.DASH
+        Card.MovementType.DASH,
+        Card.MovementType.SHIFTER
     };
 
     // ------------------------------------------------
@@ -227,7 +224,7 @@ public class RewardScreen {
         if (!isVisible()) {
             return;
         }
-        if(sectionBox==null){
+        if (sectionBox == null) {
             loadTextures();
         }
         float width = Gdx.graphics.getWidth();
@@ -235,8 +232,6 @@ public class RewardScreen {
 
         // --------------------------------------------
         // DARK OVERLAY
-        // (flat dim behind the panel — stays as a
-        // ShapeRenderer fill, no texture needed here)
         // --------------------------------------------
 
         shapeRenderer.begin(
@@ -257,9 +252,7 @@ public class RewardScreen {
         shapeRenderer.end();
 
         // --------------------------------------------
-        // PANEL (now drawn from section_box via NinePatch
-        // instead of a flat ShapeRenderer rect, so it
-        // keeps crisp rounded corners at any size)
+        // PANEL
         // --------------------------------------------
 
         float panelWidth =
@@ -334,9 +327,6 @@ public class RewardScreen {
         float buttonWidth =
             Math.min(280f, panelWidth * 0.40f);
 
-        // Height is derived from each texture's own
-        // aspect ratio so the art isn't stretched/
-        // squished to fit an arbitrary fixed height.
         float newCardButtonHeight =
             buttonWidth *
                 ((float) newCardButtonTexture.getHeight() /
@@ -362,8 +352,6 @@ public class RewardScreen {
             panelX +
                 (panelWidth - totalWidth) / 2f;
 
-        // Both buttons still sit on a shared baseline
-        // (bottom-aligned) even if their heights differ.
         float rowBottomY =
             panelY +
                 panelHeight / 2f -
@@ -385,12 +373,6 @@ public class RewardScreen {
 
         batch.begin();
 
-        // -----------------------------------------
-        // BUTTON IMAGES
-        // (labels are baked into these textures —
-        // no separate "NEW CARD"/"AUGMENT" text draw)
-        // -----------------------------------------
-
         batch.draw(
             newCardButtonTexture,
             newCardButton.x,
@@ -406,10 +388,6 @@ public class RewardScreen {
             augmentButton.width,
             augmentButton.height
         );
-
-        // -----------------------------------------
-        // HEADER TEXT
-        // -----------------------------------------
 
         font.getData().setScale(1.4f);
         font.setColor(Color.WHITE);
@@ -439,10 +417,6 @@ public class RewardScreen {
             panelY + panelHeight - 78f
         );
 
-        // -----------------------------------------
-        // SUBTITLES UNDER EACH BUTTON
-        // -----------------------------------------
-
         font.getData().setScale(0.55f);
         font.setColor(Color.WHITE);
 
@@ -459,10 +433,6 @@ public class RewardScreen {
             augmentButton.x + 30f,
             augmentButton.y - 12f
         );
-
-        // -----------------------------------------
-        // GOLD
-        // -----------------------------------------
 
         font.getData().setScale(1f);
 
@@ -560,11 +530,6 @@ public class RewardScreen {
             panelY + panelHeight - 70f
         );
 
-        // -----------------------------------------
-        // CARD SLOT BOXES (NinePatch, replaces the
-        // old flat ShapeRenderer rects)
-        // -----------------------------------------
-
         for (int i = 0; i < hand.size; i++) {
 
             Rectangle rect =
@@ -578,10 +543,6 @@ public class RewardScreen {
                 rect.height
             );
         }
-
-        // -----------------------------------------
-        // CARD TEXT
-        // -----------------------------------------
 
         for (int i = 0; i < hand.size; i++) {
 
@@ -719,10 +680,6 @@ public class RewardScreen {
             panelY + panelHeight - 70f
         );
 
-        // -----------------------------------------
-        // AUGMENT TILE BOXES (NinePatch)
-        // -----------------------------------------
-
         for (int i = 0;
              i < augmentChoices.size;
              i++) {
@@ -739,10 +696,6 @@ public class RewardScreen {
             );
         }
 
-        // -----------------------------------------
-        // AUGMENT TEXT
-        // -----------------------------------------
-
         for (int i = 0;
              i < augmentChoices.size;
              i++) {
@@ -755,14 +708,7 @@ public class RewardScreen {
 
             font.getData().setScale(0.75f);
 
-            font.setColor(
-                new Color(
-                    1f,
-                    0.78f,
-                    0.25f,
-                    1f
-                )
-            );
+            font.setColor(augmentColor(augment));
 
             font.draw(
                 batch,
@@ -771,21 +717,41 @@ public class RewardScreen {
                 rect.y + rect.height - 25f
             );
 
-            font.getData().setScale(0.55f);
+            font.getData().setScale(0.5f);
 
             font.setColor(Color.WHITE);
 
+            // Wrapped so long descriptions stay inside the tile
             font.draw(
                 batch,
                 augment.getDescription(),
                 rect.x + 15f,
-                rect.y + rect.height - 60f
+                rect.y + rect.height - 55f,
+                rect.width - 30f,
+                Align.left,
+                true
             );
         }
 
         resetFont();
 
         batch.end();
+    }
+
+    // Name colour: red for Fury, blue for Mana Surge, gold for the rest
+    private Color augmentColor(Augment augment) {
+
+        String type = augment.getType().name();
+
+        if (type.equals("FURY")) {
+            return new Color(1f, 0.40f, 0.40f, 1f);
+        }
+
+        if (type.equals("MANA_SURGE")) {
+            return new Color(0.45f, 0.65f, 1f, 1f);
+        }
+
+        return new Color(1f, 0.78f, 0.25f, 1f);
     }
 
     // ------------------------------------------------
@@ -877,12 +843,6 @@ public class RewardScreen {
                     selectedAugment =
                         augmentChoices.get(i);
 
-                    // FIX: this branch used to leave
-                    // state on CHOOSING_AUGMENT forever,
-                    // unlike the new-card path (which
-                    // sets HIDDEN). That meant nothing
-                    // ever observed the augment as
-                    // "done" and applied it.
                     state = State.HIDDEN;
 
                     return true;
@@ -978,6 +938,7 @@ public class RewardScreen {
                 1
             )
         );
+
         pool.add(
             new Augment(
                 AugmentType.TELEPORTATION_INFUSION,
@@ -993,6 +954,71 @@ public class RewardScreen {
                 "DOUBLE MOVE",
                 "The card can trigger another move.",
                 1
+            )
+        );
+
+        // ---- New augments ----
+
+        pool.add(
+            new Augment(
+                AugmentType.FURY,
+                "FURY",
+                "Red frame. Captures deal +1 extra damage.",
+                1
+            )
+        );
+
+        pool.add(
+            new Augment(
+                AugmentType.MANA_SURGE,
+                "MANA SURGE",
+                "Blue frame. Restores 2 extra mana when played.",
+                2
+            )
+        );
+
+        pool.add(
+            new Augment(
+                AugmentType.VAMPIRIC,
+                "VAMPIRIC",
+                "Capturing with this card heals 1 HP.",
+                1
+            )
+        );
+
+        pool.add(
+            new Augment(
+                AugmentType.GILDED,
+                "GILDED",
+                "Capturing with this card gives +8 gold.",
+                8
+            )
+        );
+
+        pool.add(
+            new Augment(
+                AugmentType.AEGIS,
+                "AEGIS",
+                "Playing this card gives +1 DEF.",
+                1
+            )
+        );
+
+        pool.add(
+            new Augment(
+                AugmentType.VENOM,
+                "VENOM",
+                "Playing this card poisons the nearest enemy for 3 turns.",
+                3
+            )
+        );
+
+        pool.add(
+            new Augment(
+                AugmentType.ECHO,
+                "ECHO",
+                "35% chance this card does not lose a use.",
+                35
             )
         );
 

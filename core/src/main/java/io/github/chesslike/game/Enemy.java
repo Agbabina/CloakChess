@@ -297,6 +297,11 @@ public class Enemy {
 
         moveTo(bestMove[0], bestMove[1], MOVE_DURATION);
 
+        // Jester cycles its pattern after every move it makes
+        if (movementRules instanceof JesterRules) {
+            ((JesterRules) movementRules).advanceTurn();
+        }
+
         return true;
     }
 
@@ -324,6 +329,13 @@ public class Enemy {
         activeDuration = duration;
         moveTimer = 0f;
         moving = true;
+    }
+
+    // Instantly place the sprite on the current tile (used by teleports like Confuse)
+    private void snapToTile() {
+        moving = false;
+        renderX = getBoardX() + x * TILE_SIZE;
+        renderY = getBoardY() + y * TILE_SIZE;
     }
 
     // ANIMATION
@@ -374,6 +386,17 @@ public class Enemy {
 
     public int getY() {
         return y;
+    }
+
+    // Setters teleport: the sprite follows immediately so it never disagrees with the logical tile
+    public void setX(int newX) {
+        this.x = newX;
+        snapToTile();
+    }
+
+    public void setY(int newY) {
+        this.y = newY;
+        snapToTile();
     }
 
     public Card.MovementType getMovementType() {

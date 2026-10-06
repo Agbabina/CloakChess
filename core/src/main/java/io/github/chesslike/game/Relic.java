@@ -60,7 +60,7 @@ public class Relic {
         }
     }
 
-    private static final float CURSE_CHANCE = 0.50f;
+    private static final float CURSE_CHANCE = 0.75f;
 
     private static final int PRICE = 60;
     private static final int CURSED_PRICE = 40;
