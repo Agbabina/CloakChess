@@ -16,10 +16,10 @@ public class BlitzScore {
         }
     }
     private int score, streak, multiplier, bestStreak, permanentMultiplierBonus, permanentBaseBonus;
-    private int roomCaptures, totalCaptures, hungryBonusPercent;
+    private int roomCaptures, totalCaptures, hungryBonusPercent, cardsPlayed;
     private final Set<BlitzRelic> relics=EnumSet.noneOf(BlitzRelic.class);
     public BlitzScore(){reset();}
-    public void reset(){score=0;streak=0;multiplier=1;bestStreak=0;permanentMultiplierBonus=0;permanentBaseBonus=0;roomCaptures=0;totalCaptures=0;hungryBonusPercent=0;}
+    public void reset(){score=0;streak=0;multiplier=1;bestStreak=0;permanentMultiplierBonus=0;permanentBaseBonus=0;roomCaptures=0;totalCaptures=0;hungryBonusPercent=0;cardsPlayed=0;}
     public void setRelics(Iterable<BlitzRelic> activeRelics){relics.clear();if(activeRelics!=null)for(BlitzRelic r:activeRelics)if(r!=null)relics.add(r);}
     private boolean has(BlitzRelic r){return relics.contains(r);}
 
@@ -63,7 +63,7 @@ public class BlitzScore {
     public int addSpecialCapture(int bonus){streak++;bestStreak=Math.max(bestStreak,streak);updateMultiplier();int p=(100+bonus)*multiplier;score+=p;return p;}
     public int addRoomClear(){int p=500*multiplier;if(has(BlitzRelic.HASTE_CORE))p+=250;score+=p;return p;}
     public int addSpell(){int p=75*multiplier;score+=p;return p;}
-    public int addCardPlay(){int p=25*multiplier;score+=p;return p;}
+    public int addCardPlay(){cardsPlayed++;int p=25*multiplier;score+=p;return p;}
     public void breakStreak(){streak=0;multiplier=1+permanentMultiplierBonus;hungryBonusPercent=0;}
     private void updateMultiplier(){
         if(streak>=15)multiplier=5;else if(streak>=10)multiplier=4;else if(streak>=6)multiplier=3;else if(streak>=3)multiplier=2;else multiplier=1;
@@ -72,5 +72,5 @@ public class BlitzScore {
     }
     public int getScore(){return score;} public int getStreak(){return streak;} public int getMultiplier(){return multiplier;}
     public int getBestStreak(){return bestStreak;} public int getTotalCaptures(){return totalCaptures;}
-    public int getRoomCaptures(){return roomCaptures;}
+    public int getRoomCaptures(){return roomCaptures;} public int getCardsPlayed(){return cardsPlayed;} public void addBonusScore(int points){score+=Math.max(0,points);}
 }
