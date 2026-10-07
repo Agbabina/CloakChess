@@ -1827,7 +1827,7 @@ public class Main extends Game {
 
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
-            if (!e.isAlive() || e.isFalling()) continue;
+            if (e == excluded || !e.isAlive() || e.isFalling()) continue;
             float cx = tileCenterX(e.getX()), cy = tileCenterY(e.getY());
 
             Integer bn = burnTurns.get(e);
@@ -5173,7 +5173,7 @@ public class Main extends Game {
 
             // The corrupted Queen gets a second capture anywhere on its line.
             if (target == null && pass == 1 && queenChain) {
-                target = findQueenChainTarget();
+                target = findQueenChainTarget(target);
             }
 
             if (target == null) break;
@@ -5242,7 +5242,7 @@ public class Main extends Game {
         return capturedAny;
     }
 
-    private Enemy findQueenChainTarget() {
+    private Enemy findQueenChainTarget(Enemy excluded) {
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
             if (!e.isAlive() || e.isFalling()) continue;
