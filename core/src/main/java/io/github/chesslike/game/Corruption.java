@@ -60,6 +60,10 @@ public class Corruption {
         level = clamp(level + Math.max(0, amount));
     }
 
+    public void reduce(int amount) {
+        level = clamp(level - Math.max(0, amount));
+    }
+
     public void set(int amount) {
         level = clamp(amount);
     }
