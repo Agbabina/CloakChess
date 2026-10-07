@@ -4789,7 +4789,13 @@ public class Main extends Game {
             return;
         }
 
-        if (isDashCard(activeCard)) pushEnemiesAlongDash(tx, ty);
+        if (isDashCard(activeCard)) {
+            if (corruption.allowsDashThroughEnemies()) {
+                message("PHASE DASH!", 1.0f);
+            } else {
+                pushEnemiesAlongDash(tx, ty);
+            }
+        }
         if (activeCard.hasPierce()) {
             Enemy e = findFirstEnemyInLine(tx, ty);
             if (e != null) damageEnemy(e, 1);
@@ -5055,7 +5061,16 @@ public class Main extends Game {
             burnTurns.clear();
             confusedUntil.clear();
             invisibleTurns = 0;
-            message("CLEANSED!", 1.5f);
+
+            int beforeCorruption = corruption.getLevel();
+            corruption.reduce(10);
+            if (corruption.getLevel() < beforeCorruption) {
+                showPopup("CORRUPTION -10  " + corruption.getLevel() + "%", .45f, .95f, 1f, 1.2f);
+                message("CLEANSED! The board stabilizes.", 1.5f);
+            } else {
+                message("CLEANSED!", 1.5f);
+            }
+
             spawnBurst(tileCenterX(player.getX()), tileCenterY(player.getY()), 20, .55f, .95f, 1f, 50f);
         } else if (isWarded(target)) {
             spawnBurst(tileCenterX(target.getX()), tileCenterY(target.getY()), 10, .7f, .7f, .8f, 0f);
@@ -5137,52 +5152,63 @@ public class Main extends Game {
     }
 
     private boolean checkPlayerCapture() {
-        for (int i = 0; i < enemies.size; i++) {
-            Enemy e = enemies.get(i);
+        boolean capturedAny = false;
+        boolean queenChain = captureCard != null
+            && captureCard.getCurrentForm() == Card.MovementType.QUEEN
+            && corruption.allowsDoubleQueenCapture();
 
-            if (!e.isAlive()
-                || e.getX() != player.getX()
-                || e.getY() != player.getY()) {
-                continue;
+        for (int pass = 0; pass < (queenChain ? 2 : 1); pass++) {
+            Enemy target = null;
+
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy e = enemies.get(i);
+                if (!e.isAlive()
+                    || e.getX() != player.getX()
+                    || e.getY() != player.getY()) {
+                    continue;
+                }
+                target = e;
+                break;
             }
-            EnemyCurse curse = enemyCurses.get(e);
-            CaptureCurse captureCurse = captureCurses.get(e);
+
+            // The corrupted Queen gets a second capture anywhere on its line.
+            if (target == null && pass == 1 && queenChain) {
+                target = findQueenChainTarget();
+            }
+
+            if (target == null) break;
+
+            EnemyCurse curse = enemyCurses.get(target);
+            CaptureCurse captureCurse = captureCurses.get(target);
             Card cc = captureCard;
             int captureHealthPercent = Math.round(
-                100f * e.getHealth() / Math.max(1, e.getMaxHealth())
+                100f * target.getHealth() / Math.max(1, target.getMaxHealth())
             );
 
-            if (captureCurse != null && captureCurse.blocks(captureCard, invisibleTurns > 0, rollCaptureDamage())) {
+            if (captureCurse != null && captureCurse.blocks(cc, invisibleTurns > 0, rollCaptureDamage())) {
                 message(captureCurse.getLabel() + "! This enemy resists that capture.", 1.5f);
-                spawnFloat(captureCurse.getShortLabel(), tileCenterX(e.getX()), tileCenterY(e.getY()) + 42f, .85f, .55f, .30f);
+                spawnFloat(captureCurse.getShortLabel(), tileCenterX(target.getX()), tileCenterY(target.getY()) + 42f, .85f, .55f, .30f);
                 breakCombo();
-                moveEnemies();
-                return false;
+                if (pass == 0) moveEnemies();
+                break;
             }
 
-            // Critical capture happens first.
-            boolean critical = invisibleTurns > 0 ? assassinate(e) : rollCriticalCapture(e);
+            boolean critical = invisibleTurns > 0 ? assassinate(target) : rollCriticalCapture(target);
 
             if (!critical) {
-                // Normal capture damages the enemy.
                 int captureDamage = rollCaptureDamage();
                 if (cc != null && cc.hasFury()) {
                     captureDamage += 1;
                     spawnFloat("FURY +1", tileCenterX(player.getX()), tileCenterY(player.getY()) + 62f, 1f, .3f, .3f);
                 }
 
-                damageEnemy(e, captureDamage);
+                damageEnemy(target, captureDamage);
 
                 if (captureDamage >= 2) {
-                    showPopup(
-                        "HEAVY CAPTURE!",
-                        1f, .45f, .20f,
-                        0.9f
-                    );
+                    showPopup("HEAVY CAPTURE!", 1f, .45f, .20f, 0.9f);
                 }
             }
 
-            // Curse retaliation
             if (curse == EnemyCurse.VENGEFUL) {
                 damagePlayer(1);
                 message("Vengeful! +1 damage", 1.5f);
@@ -5193,7 +5219,6 @@ public class Main extends Game {
                 message("Thorns! The capture hurt you.", 1.5f);
             }
 
-            // Augment capture effects
             if (cc != null && !gameOverScreen.isVisible()) {
                 if (cc.hasVampiric()) healPlayer(1);
                 if (cc.hasGilded()) {
@@ -5202,23 +5227,36 @@ public class Main extends Game {
                 }
             }
 
-            spawnSlash(
-                player.getX(),
-                player.getY()
-            );
-
-            registerCapture(e, cc, curse, invisibleTurns > 0, captureHealthPercent);
+            spawnSlash(player.getX(), player.getY());
+            registerCapture(target, cc, curse, invisibleTurns > 0, captureHealthPercent);
             refillHandIfNeeded();
 
-            groundPound(
-                player.getX(),
-                player.getY()
-            );
+            groundPound(player.getX(), player.getY());
+            capturedAny = true;
 
-            return true;
+            if (pass == 0 && queenChain) {
+                showPopup("QUEEN CHAIN!", .95f, .65f, 1f, .8f);
+            }
         }
 
-        return false;
+        return capturedAny;
+    }
+
+    private Enemy findQueenChainTarget() {
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if (!e.isAlive() || e.isFalling()) continue;
+
+            int dx = Math.abs(e.getX() - player.getX());
+            int dy = Math.abs(e.getY() - player.getY());
+
+            if (e.getX() == player.getX()
+                || e.getY() == player.getY()
+                || dx == dy) {
+                return e;
+            }
+        }
+        return null;
     }
 
     private void handleSpellInput() {
