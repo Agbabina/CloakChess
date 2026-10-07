@@ -5663,6 +5663,12 @@ public class Main extends Game {
         items.add(new ShopScreen.Item(ShopScreen.Kind.AMMO, "Bouncing Arrows x" + BOUNCE_PACK,
             "Ricochet to " + BOUNCE_BOUNCES + " more enemies", shopPrice(50), null, null));
 
+        items.add(new ShopScreen.Item(ShopScreen.Kind.STABILIZE, "STABILIZE",
+            "Spend 20 gold to remove 15 Corruption", 20, null, null));
+
+        items.add(new ShopScreen.Item(ShopScreen.Kind.PURIFY, "PURIFY",
+            "Sacrifice 2 HP to remove 25 Corruption", 0, null, null));
+
         if (hand.size >= 2) {
             Card w = weakestCard();
             items.add(new ShopScreen.Item(ShopScreen.Kind.SELL, "Sell " + w.getName(),
@@ -5791,14 +5797,46 @@ public class Main extends Game {
             return;
         }
 
+        if (item.kind == ShopScreen.Kind.PURIFY) {
+            if (corruption.getLevel() <= 0) {
+                playSfx(errorSound);
+                shopScreen.setMessage("Corruption is already gone");
+                return;
+            }
+            if (playerHp <= 2) {
+                playSfx(errorSound);
+                shopScreen.setMessage("Need at least 3 HP to purify");
+                return;
+            }
+            playerHp -= 2;
+            corruption.reduce(25);
+            playSfx(blessingSound);
+            showPopup("PURIFIED!  CORRUPTION -25", .65f, 1f, .75f, 1.2f);
+            message("Purification cost 2 HP.", 1.5f);
+            shopScreen.markSold(result);
+            autosave();
+            return;
+        }
+
+        if (item.kind == ShopScreen.Kind.STABILIZE && corruption.getLevel() <= 0) {
+            playSfx(errorSound);
+            shopScreen.setMessage("The board is already stable");
+            return;
+        }
+
         if (gold < item.cost) {
             playSfx(errorSound);
             shopScreen.setMessage("Not enough gold");
             return;
         }
+
         gold -= item.cost;
         playSfx(buySound);
-        if (item.kind == ShopScreen.Kind.POTION) {
+        if (item.kind == ShopScreen.Kind.STABILIZE) {
+            corruption.reduce(15);
+            showPopup("STABILIZED!  CORRUPTION -15", .55f, .75f, 1f, 1.0f);
+            message("The board stabilizes.", 1.5f);
+        } else if (item.kind == ShopScreen.Kind.POTION) {
             healPlayer(POTION_HEAL + (hasRelic(Relic.Blessing.HEARTY_BREW) ? 1 : 0));
             message("Potion bought!", 1.5f);
         } else if (item.kind == ShopScreen.Kind.SPELL) {
