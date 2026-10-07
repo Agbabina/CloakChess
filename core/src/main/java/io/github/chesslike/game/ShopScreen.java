@@ -15,7 +15,7 @@ public class ShopScreen {
     public static final int LEAVE = -1;
     public static final int REROLL = -3;
 
-    public enum Kind { POTION, SPELL, RELIC, AMMO, SELL }
+    public enum Kind { POTION, SPELL, RELIC, AMMO, SELL, STABILIZE, PURIFY }
 
     public static class Item {
 

@@ -525,6 +525,7 @@ public class Main extends Game {
     private RewardScreen rewardScreen;
     private GameOverScreen gameOverScreen;
     private int difficulty = 1;
+    private final Corruption corruption = new Corruption();
 
     private static final float DROP_STAGGER = 0.18f;
 
@@ -737,7 +738,8 @@ public class Main extends Game {
         generator.dispose();
 
         board = new Board(batch);
-        player = new Player(2, 2);
+        player = new Player(3, 3);
+        player.setCorruption(corruption);
         enemyGenerator = new EnemyGenerator();
         hand = new Array<>();
         rewardScreen = new RewardScreen(batch, shapeRenderer, font);
@@ -1825,7 +1827,7 @@ public class Main extends Game {
 
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
-            if (!e.isAlive() || e.isFalling()) continue;
+            if (e == excluded || !e.isAlive() || e.isFalling()) continue;
             float cx = tileCenterX(e.getX()), cy = tileCenterY(e.getY());
 
             Integer bn = burnTurns.get(e);
@@ -4155,6 +4157,7 @@ public class Main extends Game {
         tutorialVisible = false;
         evtVisible = false;
         omen = OMEN_NONE;
+        corruption.reset();
 
         if (blitzMode) {
             blitzManager.start();
@@ -4786,7 +4789,13 @@ public class Main extends Game {
             return;
         }
 
-        if (isDashCard(activeCard)) pushEnemiesAlongDash(tx, ty);
+        if (isDashCard(activeCard)) {
+            if (corruption.allowsDashThroughEnemies()) {
+                message("PHASE DASH!", 1.0f);
+            } else {
+                pushEnemiesAlongDash(tx, ty);
+            }
+        }
         if (activeCard.hasPierce()) {
             Enemy e = findFirstEnemyInLine(tx, ty);
             if (e != null) damageEnemy(e, 1);
@@ -5052,7 +5061,16 @@ public class Main extends Game {
             burnTurns.clear();
             confusedUntil.clear();
             invisibleTurns = 0;
-            message("CLEANSED!", 1.5f);
+
+            int beforeCorruption = corruption.getLevel();
+            corruption.reduce(10);
+            if (corruption.getLevel() < beforeCorruption) {
+                showPopup("CORRUPTION -10  " + corruption.getLevel() + "%", .45f, .95f, 1f, 1.2f);
+                message("CLEANSED! The board stabilizes.", 1.5f);
+            } else {
+                message("CLEANSED!", 1.5f);
+            }
+
             spawnBurst(tileCenterX(player.getX()), tileCenterY(player.getY()), 20, .55f, .95f, 1f, 50f);
         } else if (isWarded(target)) {
             spawnBurst(tileCenterX(target.getX()), tileCenterY(target.getY()), 10, .7f, .7f, .8f, 0f);
@@ -5134,52 +5152,63 @@ public class Main extends Game {
     }
 
     private boolean checkPlayerCapture() {
-        for (int i = 0; i < enemies.size; i++) {
-            Enemy e = enemies.get(i);
+        boolean capturedAny = false;
+        boolean queenChain = captureCard != null
+            && captureCard.getCurrentForm() == Card.MovementType.QUEEN
+            && corruption.allowsDoubleQueenCapture();
 
-            if (!e.isAlive()
-                || e.getX() != player.getX()
-                || e.getY() != player.getY()) {
-                continue;
+        for (int pass = 0; pass < (queenChain ? 2 : 1); pass++) {
+            Enemy target = null;
+
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy e = enemies.get(i);
+                if (!e.isAlive()
+                    || e.getX() != player.getX()
+                    || e.getY() != player.getY()) {
+                    continue;
+                }
+                target = e;
+                break;
             }
-            EnemyCurse curse = enemyCurses.get(e);
-            CaptureCurse captureCurse = captureCurses.get(e);
+
+            // The corrupted Queen gets a second capture anywhere on its line.
+            if (target == null && pass == 1 && queenChain) {
+                target = findQueenChainTarget(target);
+            }
+
+            if (target == null) break;
+
+            EnemyCurse curse = enemyCurses.get(target);
+            CaptureCurse captureCurse = captureCurses.get(target);
             Card cc = captureCard;
             int captureHealthPercent = Math.round(
-                100f * e.getHealth() / Math.max(1, e.getMaxHealth())
+                100f * target.getHealth() / Math.max(1, target.getMaxHealth())
             );
 
-            if (captureCurse != null && captureCurse.blocks(captureCard, invisibleTurns > 0, rollCaptureDamage())) {
+            if (captureCurse != null && captureCurse.blocks(cc, invisibleTurns > 0, rollCaptureDamage())) {
                 message(captureCurse.getLabel() + "! This enemy resists that capture.", 1.5f);
-                spawnFloat(captureCurse.getShortLabel(), tileCenterX(e.getX()), tileCenterY(e.getY()) + 42f, .85f, .55f, .30f);
+                spawnFloat(captureCurse.getShortLabel(), tileCenterX(target.getX()), tileCenterY(target.getY()) + 42f, .85f, .55f, .30f);
                 breakCombo();
-                moveEnemies();
-                return false;
+                if (pass == 0) moveEnemies();
+                break;
             }
 
-            // Critical capture happens first.
-            boolean critical = invisibleTurns > 0 ? assassinate(e) : rollCriticalCapture(e);
+            boolean critical = invisibleTurns > 0 ? assassinate(target) : rollCriticalCapture(target);
 
             if (!critical) {
-                // Normal capture damages the enemy.
                 int captureDamage = rollCaptureDamage();
                 if (cc != null && cc.hasFury()) {
                     captureDamage += 1;
                     spawnFloat("FURY +1", tileCenterX(player.getX()), tileCenterY(player.getY()) + 62f, 1f, .3f, .3f);
                 }
 
-                damageEnemy(e, captureDamage);
+                damageEnemy(target, captureDamage);
 
                 if (captureDamage >= 2) {
-                    showPopup(
-                        "HEAVY CAPTURE!",
-                        1f, .45f, .20f,
-                        0.9f
-                    );
+                    showPopup("HEAVY CAPTURE!", 1f, .45f, .20f, 0.9f);
                 }
             }
 
-            // Curse retaliation
             if (curse == EnemyCurse.VENGEFUL) {
                 damagePlayer(1);
                 message("Vengeful! +1 damage", 1.5f);
@@ -5190,7 +5219,6 @@ public class Main extends Game {
                 message("Thorns! The capture hurt you.", 1.5f);
             }
 
-            // Augment capture effects
             if (cc != null && !gameOverScreen.isVisible()) {
                 if (cc.hasVampiric()) healPlayer(1);
                 if (cc.hasGilded()) {
@@ -5199,23 +5227,36 @@ public class Main extends Game {
                 }
             }
 
-            spawnSlash(
-                player.getX(),
-                player.getY()
-            );
-
-            registerCapture(e, cc, curse, invisibleTurns > 0, captureHealthPercent);
+            spawnSlash(player.getX(), player.getY());
+            registerCapture(target, cc, curse, invisibleTurns > 0, captureHealthPercent);
             refillHandIfNeeded();
 
-            groundPound(
-                player.getX(),
-                player.getY()
-            );
+            groundPound(player.getX(), player.getY());
+            capturedAny = true;
 
-            return true;
+            if (pass == 0 && queenChain) {
+                showPopup("QUEEN CHAIN!", .95f, .65f, 1f, .8f);
+            }
         }
 
-        return false;
+        return capturedAny;
+    }
+
+    private Enemy findQueenChainTarget(Enemy excluded) {
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if (!e.isAlive() || e.isFalling()) continue;
+
+            int dx = Math.abs(e.getX() - player.getX());
+            int dy = Math.abs(e.getY() - player.getY());
+
+            if (e.getX() == player.getX()
+                || e.getY() == player.getY()
+                || dx == dy) {
+                return e;
+            }
+        }
+        return null;
     }
 
     private void handleSpellInput() {
@@ -5507,6 +5548,11 @@ public class Main extends Game {
         }
 
         gold += reward + interest;
+        int oldCorruption = corruption.getLevel();
+        corruption.add(10);
+        if (corruption.getLevel() != oldCorruption) {
+            showPopup("CORRUPTION +10  " + corruption.getLevel() + "%", .75f, .25f, 1f, 1.5f);
+        }
         healPlayer((hasRelic(Relic.Blessing.SECOND_WIND) ? 1 : 0) + (runPact[4] ? 1 : 0));
         rewardScreen.show(reward);
     }
@@ -5616,6 +5662,12 @@ public class Main extends Game {
 
         items.add(new ShopScreen.Item(ShopScreen.Kind.AMMO, "Bouncing Arrows x" + BOUNCE_PACK,
             "Ricochet to " + BOUNCE_BOUNCES + " more enemies", shopPrice(50), null, null));
+
+        items.add(new ShopScreen.Item(ShopScreen.Kind.STABILIZE, "STABILIZE",
+            "Spend 20 gold to remove 15 Corruption", 20, null, null));
+
+        items.add(new ShopScreen.Item(ShopScreen.Kind.PURIFY, "PURIFY",
+            "Sacrifice 2 HP to remove 25 Corruption", 0, null, null));
 
         if (hand.size >= 2) {
             Card w = weakestCard();
@@ -5745,14 +5797,46 @@ public class Main extends Game {
             return;
         }
 
+        if (item.kind == ShopScreen.Kind.PURIFY) {
+            if (corruption.getLevel() <= 0) {
+                playSfx(errorSound);
+                shopScreen.setMessage("Corruption is already gone");
+                return;
+            }
+            if (playerHp <= 2) {
+                playSfx(errorSound);
+                shopScreen.setMessage("Need at least 3 HP to purify");
+                return;
+            }
+            playerHp -= 2;
+            corruption.reduce(25);
+            playSfx(blessingSound);
+            showPopup("PURIFIED!  CORRUPTION -25", .65f, 1f, .75f, 1.2f);
+            message("Purification cost 2 HP.", 1.5f);
+            shopScreen.markSold(result);
+            autosave();
+            return;
+        }
+
+        if (item.kind == ShopScreen.Kind.STABILIZE && corruption.getLevel() <= 0) {
+            playSfx(errorSound);
+            shopScreen.setMessage("The board is already stable");
+            return;
+        }
+
         if (gold < item.cost) {
             playSfx(errorSound);
             shopScreen.setMessage("Not enough gold");
             return;
         }
+
         gold -= item.cost;
         playSfx(buySound);
-        if (item.kind == ShopScreen.Kind.POTION) {
+        if (item.kind == ShopScreen.Kind.STABILIZE) {
+            corruption.reduce(15);
+            showPopup("STABILIZED!  CORRUPTION -15", .55f, .75f, 1f, 1.0f);
+            message("The board stabilizes.", 1.5f);
+        } else if (item.kind == ShopScreen.Kind.POTION) {
             healPlayer(POTION_HEAL + (hasRelic(Relic.Blessing.HEARTY_BREW) ? 1 : 0));
             message("Potion bought!", 1.5f);
         } else if (item.kind == ShopScreen.Kind.SPELL) {
@@ -5807,6 +5891,7 @@ public class Main extends Game {
         clearMoveAnim();
         difficulty = 1;
         omen = OMEN_NONE;
+        corruption.reset();
         evtVisible = false;
         cardModifiers.clear();
         enemyCurses.clear();
@@ -5819,7 +5904,8 @@ public class Main extends Game {
         arrowInFlight = false;
         pendingHitEnemy = null;
         if (player != null) player.dispose();
-        player = new Player(2, 2);
+        player = new Player(3, 3);
+        player.setCorruption(corruption);
         resetPlayerStats();
         buildStartingHand();
         if (enemies != null) for (int i = 0; i < enemies.size; i++) enemies.get(i).dispose();
@@ -6219,6 +6305,30 @@ public class Main extends Game {
         popupColor.set(r, g, b, 1f);
     }
 
+    private void renderCorruptionHud() {
+        float x = 20f, y = Gdx.graphics.getHeight() - 105f;
+        float w = 170f, h = 12f;
+        float p = corruption.getProgress();
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(.10f, .07f, .14f, .9f);
+        shapeRenderer.rect(x, y, w, h);
+        shapeRenderer.setColor(.72f, .20f, .92f, 1f);
+        shapeRenderer.rect(x, y, w * p, h);
+        shapeRenderer.end();
+
+        batch.begin();
+        font.getData().setScale(.48f);
+        font.setColor(new Color(.82f, .42f, 1f, 1f));
+        font.draw(batch, "CORRUPTION " + corruption.getLevel() + "%", x, y + 25f);
+        font.getData().setScale(.36f);
+        font.setColor(new Color(.70f, .70f, .78f, 1f));
+        font.draw(batch, corruption.getStatusText(), x, y - 7f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
     private void renderPopup() {
         if (popupTimer <= 0f) return;
         popupTimer -= Gdx.graphics.getDeltaTime();
@@ -6341,6 +6451,7 @@ public class Main extends Game {
         font.setColor(Color.WHITE);
         batch.end();
         renderHud();
+        renderCorruptionHud();
         renderShockwaves();
         renderDebris();
         renderSpellFx();

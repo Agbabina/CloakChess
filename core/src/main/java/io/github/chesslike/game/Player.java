@@ -13,11 +13,13 @@ public class Player {
 
     private final Texture texture;
 
-    public static final int BOARD_SIZE = 5;
+    public static final int BOARD_SIZE = 6;
     public static final float TILE_SIZE = 100f;
 
 
     private boolean selected = false;
+
+    private Corruption corruption;
 
     // =========================================
     // HEALTH
@@ -198,6 +200,38 @@ public class Player {
             return false;
         }
 
+        if (corruption != null) {
+            int dx = targetX - x;
+            int dy = targetY - y;
+            int ax = Math.abs(dx);
+            int ay = Math.abs(dy);
+
+            // Corruption bends the rules without replacing normal movement.
+            if (rules instanceof PawnRules && corruption.allowsBackwardPawn()) {
+                if (dx == 0 && Math.abs(dy) == 1) return true;
+            }
+
+            if (rules instanceof KnightRules && corruption.allowsDoubleKnightJump()) {
+                if ((ax == 4 && ay == 2) || (ax == 2 && ay == 4)) return true;
+            }
+
+            // A bent rook can turn once: horizontal + vertical = any tile.
+            if (rules instanceof RookRules && corruption.allowsBendingRook()) {
+                if (dx != 0 || dy != 0) return true;
+            }
+
+            // A bent bishop can change diagonal direction once.
+            // Two diagonal segments preserve square colour.
+            if (rules instanceof BishopRules && corruption.allowsBendingBishop()) {
+                if ((ax + ay) % 2 == 0 && (ax != 0 || ay != 0)) return true;
+            }
+
+            // At full corruption, the board has stopped respecting piece movement.
+            if (corruption.boardIsBroken()) {
+                if (dx != 0 || dy != 0) return true;
+            }
+        }
+
         return rules.isValidMove(
             x,
             y,
@@ -205,6 +239,14 @@ public class Player {
             targetY,
             board.getSize()
         );
+    }
+
+    public void setCorruption(Corruption corruption) {
+        this.corruption = corruption;
+    }
+
+    public Corruption getCorruption() {
+        return corruption;
     }
 
     public boolean moveTo(
