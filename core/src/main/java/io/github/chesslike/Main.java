@@ -525,6 +525,7 @@ public class Main extends Game {
     private RewardScreen rewardScreen;
     private GameOverScreen gameOverScreen;
     private int difficulty = 1;
+    private final Corruption corruption = new Corruption();
 
     private static final float DROP_STAGGER = 0.18f;
 
@@ -737,7 +738,8 @@ public class Main extends Game {
         generator.dispose();
 
         board = new Board(batch);
-        player = new Player(2, 2);
+        player = new Player(3, 3);
+        player.setCorruption(corruption);
         enemyGenerator = new EnemyGenerator();
         hand = new Array<>();
         rewardScreen = new RewardScreen(batch, shapeRenderer, font);
@@ -4155,6 +4157,7 @@ public class Main extends Game {
         tutorialVisible = false;
         evtVisible = false;
         omen = OMEN_NONE;
+        corruption.reset();
 
         if (blitzMode) {
             blitzManager.start();
@@ -5507,6 +5510,11 @@ public class Main extends Game {
         }
 
         gold += reward + interest;
+        int oldCorruption = corruption.getLevel();
+        corruption.add(10);
+        if (corruption.getLevel() != oldCorruption) {
+            showPopup("CORRUPTION +10  " + corruption.getLevel() + "%", .75f, .25f, 1f, 1.5f);
+        }
         healPlayer((hasRelic(Relic.Blessing.SECOND_WIND) ? 1 : 0) + (runPact[4] ? 1 : 0));
         rewardScreen.show(reward);
     }
@@ -5807,6 +5815,7 @@ public class Main extends Game {
         clearMoveAnim();
         difficulty = 1;
         omen = OMEN_NONE;
+        corruption.reset();
         evtVisible = false;
         cardModifiers.clear();
         enemyCurses.clear();
@@ -5819,7 +5828,8 @@ public class Main extends Game {
         arrowInFlight = false;
         pendingHitEnemy = null;
         if (player != null) player.dispose();
-        player = new Player(2, 2);
+        player = new Player(3, 3);
+        player.setCorruption(corruption);
         resetPlayerStats();
         buildStartingHand();
         if (enemies != null) for (int i = 0; i < enemies.size; i++) enemies.get(i).dispose();
@@ -6219,6 +6229,30 @@ public class Main extends Game {
         popupColor.set(r, g, b, 1f);
     }
 
+    private void renderCorruptionHud() {
+        float x = 20f, y = Gdx.graphics.getHeight() - 105f;
+        float w = 170f, h = 12f;
+        float p = corruption.getProgress();
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(.10f, .07f, .14f, .9f);
+        shapeRenderer.rect(x, y, w, h);
+        shapeRenderer.setColor(.72f, .20f, .92f, 1f);
+        shapeRenderer.rect(x, y, w * p, h);
+        shapeRenderer.end();
+
+        batch.begin();
+        font.getData().setScale(.48f);
+        font.setColor(new Color(.82f, .42f, 1f, 1f));
+        font.draw(batch, "CORRUPTION " + corruption.getLevel() + "%", x, y + 25f);
+        font.getData().setScale(.36f);
+        font.setColor(new Color(.70f, .70f, .78f, 1f));
+        font.draw(batch, corruption.getStatusText(), x, y - 7f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
     private void renderPopup() {
         if (popupTimer <= 0f) return;
         popupTimer -= Gdx.graphics.getDeltaTime();
@@ -6341,6 +6375,7 @@ public class Main extends Game {
         font.setColor(Color.WHITE);
         batch.end();
         renderHud();
+        renderCorruptionHud();
         renderShockwaves();
         renderDebris();
         renderSpellFx();
