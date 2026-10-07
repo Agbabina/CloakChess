@@ -6,7 +6,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import java.util.Random;
 
 public class Board {
-    public static final int SIZE = 5;
+    public static final int SIZE = 6;
     public static final float TILE_SIZE = 100f;
 
     private final Texture darkTile;
