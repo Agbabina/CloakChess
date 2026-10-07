@@ -13,11 +13,13 @@ public class Player {
 
     private final Texture texture;
 
-    public static final int BOARD_SIZE = 5;
+    public static final int BOARD_SIZE = 6;
     public static final float TILE_SIZE = 100f;
 
 
     private boolean selected = false;
+
+    private Corruption corruption;
 
     // =========================================
     // HEALTH
@@ -198,6 +200,21 @@ public class Player {
             return false;
         }
 
+        if (corruption != null) {
+            int dx = targetX - x;
+            int dy = targetY - y;
+
+            if (rules instanceof PawnRules && corruption.allowsBackwardPawn()) {
+                if (dx == 0 && Math.abs(dy) == 1) return true;
+            }
+
+            if (rules instanceof KnightRules && corruption.allowsDoubleKnightJump()) {
+                int ax = Math.abs(dx);
+                int ay = Math.abs(dy);
+                if ((ax == 4 && ay == 2) || (ax == 2 && ay == 4)) return true;
+            }
+        }
+
         return rules.isValidMove(
             x,
             y,
@@ -205,6 +222,14 @@ public class Player {
             targetY,
             board.getSize()
         );
+    }
+
+    public void setCorruption(Corruption corruption) {
+        this.corruption = corruption;
+    }
+
+    public Corruption getCorruption() {
+        return corruption;
     }
 
     public boolean moveTo(
