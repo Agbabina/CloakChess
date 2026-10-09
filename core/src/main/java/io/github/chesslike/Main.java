@@ -1582,7 +1582,7 @@ public class Main extends Game {
                     e.getVariant() == EnemyVariant.BOSS ? 26 : 18,
                     .7f, .65f, .55f, e.getVariant() == EnemyVariant.BOSS ? 60f : 38f);
                 if (e.getVariant() == EnemyVariant.BOSS) startShake(.22f, 7f);
-                startShake(0.12f, 4f);
+                else startShake(0.12f, 4f);
                 moveSound.play();
             }
         }
