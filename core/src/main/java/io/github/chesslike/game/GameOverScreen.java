@@ -10,6 +10,7 @@ import com.badlogic.gdx.math.Rectangle;
 public class GameOverScreen {
 
     private boolean visible = false;
+    private boolean victory = false;
 
     private final SpriteBatch batch;
     private final ShapeRenderer shapeRenderer;
@@ -33,11 +34,18 @@ public class GameOverScreen {
     // ------------------------------------------------
 
     public void show() {
+        victory = false;
+        visible = true;
+    }
+
+    public void showVictory() {
+        victory = true;
         visible = true;
     }
 
     public void hide() {
         visible = false;
+        victory = false;
     }
 
     public boolean isVisible() {
@@ -80,7 +88,7 @@ public class GameOverScreen {
         float panelWidth =
             Math.min(width - 40f, 420f);
 
-        float panelHeight = 220f;
+        float panelHeight = victory ? 250f : 220f;
 
         float panelX =
             (width - panelWidth) / 2f;
@@ -150,12 +158,20 @@ public class GameOverScreen {
         font.getData().setScale(1.6f);
         font.setColor(Color.WHITE);
 
+        String title = victory ? "YOU WIN!" : "GAME OVER";
         font.draw(
             batch,
-            "GAME OVER",
-            panelX + 55f,
+            title,
+            victory ? panelX + 115f : panelX + 55f,
             panelY + panelHeight - 30f
         );
+
+        if (victory) {
+            font.getData().setScale(0.85f);
+            font.setColor(new Color(1f, .82f, .30f, 1f));
+            font.draw(batch, "All three bosses defeated.",
+                panelX + 72f, panelY + panelHeight - 75f);
+        }
 
         font.getData().setScale(0.9f);
         font.setColor(
@@ -164,8 +180,8 @@ public class GameOverScreen {
 
         font.draw(
             batch,
-            "RESTART",
-            buttonX + 55f,
+            "PLAY AGAIN",
+            buttonX + 43f,
             buttonY + buttonHeight / 2f + 8f
         );
 
