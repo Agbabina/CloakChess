@@ -5633,6 +5633,7 @@ public class Main extends Game {
                 * soulMultiplier(runPact) * (1f + 0.15f * upLevels[4]));
             souls += lastRunSouls;
             saveMeta();
+            clearAutosave();
             gameOverScreen.showVictory();
             return;
         }
