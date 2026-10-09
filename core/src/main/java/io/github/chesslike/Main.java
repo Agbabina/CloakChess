@@ -1827,7 +1827,6 @@ public class Main extends Game {
 
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
-            if (e == excluded || !e.isAlive() || e.isFalling()) continue;
             float cx = tileCenterX(e.getX()), cy = tileCenterY(e.getY());
 
             Integer bn = burnTurns.get(e);
@@ -5241,7 +5240,6 @@ public class Main extends Game {
 
         return capturedAny;
     }
-
     private Enemy findQueenChainTarget(Enemy excluded) {
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);

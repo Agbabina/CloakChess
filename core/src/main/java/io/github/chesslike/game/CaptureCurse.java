@@ -11,6 +11,10 @@ public enum CaptureCurse {
     ASSASSINATIONPROOF("Veiled", "Cloak assassination cannot kill this enemy.", "ASSASSINATION PROOF");
 
     private final String label;
+
+
+
+
     private final String description;
     private final String shortLabel;
 
