@@ -85,11 +85,11 @@ public class Main extends Game {
     private static final float INTRO_OUT_START = 2.30f;
     private static final float INTRO_TOTAL = 2.80f;
     // ---------- Meta progression (Souls) ----------
-    private static final int SOULS_PER_ROOM = 3;
-    private static final String[] UP_NAMES = {"Vitality", "Wealth", "Arcana", "Dark Pact"};
-    private static final String[] UP_DESC = {"+1 starting max HP", "+25 starting gold", "+1 max mana", "Sacrifice heals 1 HP per level"};
-    private static final int[] UP_MAX = {3, 3, 2, 2};
-    private static final int[] UP_BASE_COST = {15, 10, 20, 25};
+    private static final int SOULS_PER_ROOM = 5;
+    private static final String[] UP_NAMES = {"Vitality", "Wealth", "Arcana", "Dark Pact", "Soul Harvest"};
+    private static final String[] UP_DESC = {"+1 starting max HP", "+25 starting gold", "+1 max mana", "Sacrifice heals 1 HP per level", "+15% souls earned per level"};
+    private static final int[] UP_MAX = {3, 3, 2, 2, 3};
+    private static final int[] UP_BASE_COST = {10, 8, 15, 20, 12};
     private static final float CARD_REWARD_CHANCE = 0.40f;
     // Poison: stacks up to this many turns; 6+ turns = 2 damage per tick
     private static final int POISON_MAX_TURNS = 8;
@@ -131,13 +131,13 @@ public class Main extends Game {
     private static final float SHOP_DISCOUNT = 1.15f;
     private final GlyphLayout tipLayout = new GlyphLayout();
     private final Rectangle menuLogo = new Rectangle();
-    private final int[] upLevels = new int[4];
-    private final Rectangle[] upgradeRows = {new Rectangle(), new Rectangle(), new Rectangle(), new Rectangle()};
+    private final int[] upLevels = new int[5];
+    private final Rectangle[] upgradeRows = {new Rectangle(), new Rectangle(), new Rectangle(), new Rectangle(), new Rectangle()};
     // ---------- Pacts (buff + debuff bargains) ----------
     private static final int PACT_COUNT = 6;
     private static final String[] PACT_NAMES = {"Glass Cannon", "Blood Money", "Arcane Pact", "Lucky Devil", "Iron Will", "Soul Broker"};
     private static final String[] PACT_BUFF = {"+1 mana per card played", "+50% room gold", "Spells cost 1 less mana",
-        "+20% critical capture chance", "Heal 1 HP after every room", "+50% souls earned"};
+        "+20% critical capture chance", "Heal 1 HP after every room", "+75% souls earned"};
     private static final String[] PACT_BANE = {"-1 max HP", "Enemies hit for 2 from room 4", "-2 max mana",
         "+20% enemy curse chance", "-20% card drop chance", "All enemies start shielded"};
     private final boolean[] pactOn = new boolean[PACT_COUNT];    // what you have equipped in the menu
@@ -3979,7 +3979,7 @@ public class Main extends Game {
     }
 
     private float soulMultiplier(boolean[] src) {
-        return 1f + 0.10f * activePactCount(src) + (src[5] ? 0.5f : 0f);
+        return 1f + 0.10f * activePactCount(src) + (src[5] ? 0.75f : 0f);
     }
 
     private int pactSlotCost() {
@@ -5568,6 +5568,14 @@ public class Main extends Game {
     private void winRoom() {
         if (backgroundMusic != null && backgroundMusic.isPlaying()) backgroundMusic.stop();
         boolean finalBossDefeated = FloorProgression.isFinalBossRoom(difficulty);
+        if (FloorProgression.isBossRoom(difficulty)) {
+            int bossNumber = FloorProgression.bossNumberForRoom(difficulty);
+            int bossSoulBonus = bossNumber == 1 ? 20 : bossNumber == 2 ? 40 : 80;
+            runBonusSouls += bossSoulBonus;
+            spawnFloat("+" + bossSoulBonus + " SOUL ESSENCE",
+                tileCenterX(player.getX()), tileCenterY(player.getY()) + 112f,
+                .72f, .38f, 1f);
+        }
         victorySound.play();
         for (int i = 0; i < 10; i++) {
             float bx = Player.getBoardX() + random.nextFloat() * Player.TILE_SIZE * Player.BOARD_SIZE;
@@ -5620,6 +5628,12 @@ public class Main extends Game {
         }
         healPlayer((hasRelic(Relic.Blessing.SECOND_WIND) ? 1 : 0) + (runPact[4] ? 1 : 0));
         if (finalBossDefeated) {
+            // Victory is a successful run, so grant the same soul payout as defeat.
+            lastRunSouls = Math.round((difficulty * SOULS_PER_ROOM + runBonusSouls)
+                * soulMultiplier(runPact) * (1f + 0.15f * upLevels[4]));
+            souls += lastRunSouls;
+            saveMeta();
+            clearAutosave();
             gameOverScreen.showVictory();
             return;
         }
@@ -5940,7 +5954,7 @@ public class Main extends Game {
             blitzBreakdownTimer = 0f;
         }
 
-        lastRunSouls = Math.round((difficulty * SOULS_PER_ROOM + runBonusSouls) * soulMultiplier(runPact));
+        lastRunSouls = Math.round((difficulty * SOULS_PER_ROOM + runBonusSouls) * soulMultiplier(runPact) * (1f + 0.15f * upLevels[4]));
         souls += lastRunSouls;
         saveMeta();
         clearAutosave();
