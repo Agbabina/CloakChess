@@ -2252,7 +2252,9 @@ public class Main extends Game {
             startShake(enemy.getVariant() == EnemyVariant.BOSS ? .45f : .16f,
                 enemy.getVariant() == EnemyVariant.BOSS ? 15f : 4f);
             if (enemy.getVariant() == EnemyVariant.BOSS) {
-                showPopup("FLOOR 5 BOSS DEFEATED!", 1f, .65f, .25f, 2.4f);
+                int bossNumber = FloorProgression.bossNumberForRoom(difficulty);
+                showPopup("BOSS " + bossNumber + " DEFEATED!",
+                    1f, .65f, .25f, 2.4f);
             }
             if (enemy.getVariant() == EnemyVariant.PLAGUEBEARER) {
                 board.poisonTile(enemy.getX(), enemy.getY());
@@ -5565,14 +5567,16 @@ public class Main extends Game {
 
     private void winRoom() {
         if (backgroundMusic != null && backgroundMusic.isPlaying()) backgroundMusic.stop();
+        boolean finalBossDefeated = FloorProgression.isFinalBossRoom(difficulty);
         victorySound.play();
         for (int i = 0; i < 10; i++) {
             float bx = Player.getBoardX() + random.nextFloat() * Player.TILE_SIZE * Player.BOARD_SIZE;
             float by = Player.getBoardY() + random.nextFloat() * Player.TILE_SIZE * Player.BOARD_SIZE;
             spawnBurst(bx, by, 10, MathUtils.random(.5f, 1f), MathUtils.random(.5f, 1f), MathUtils.random(.3f, 1f), 120f);
         }
-        showPopup(FloorProgression.isBossRoom(difficulty)
-            ? "FLOOR 5 CLEARED!" : "ROOM CLEAR!",
+        showPopup(finalBossDefeated
+            ? "YOU WIN!" : FloorProgression.isBossRoom(difficulty)
+                ? "BOSS FLOOR CLEARED!" : "ROOM CLEAR!",
             .4f, 1f, .55f, FloorProgression.isBossRoom(difficulty) ? 2.4f : 1.4f);
         updateObjectiveProgress();
         if (blitzMode && blitzManager != null) {
@@ -5615,6 +5619,10 @@ public class Main extends Game {
             showPopup("CORRUPTION +10  " + corruption.getLevel() + "%", .75f, .25f, 1f, 1.5f);
         }
         healPlayer((hasRelic(Relic.Blessing.SECOND_WIND) ? 1 : 0) + (runPact[4] ? 1 : 0));
+        if (finalBossDefeated) {
+            gameOverScreen.showVictory();
+            return;
+        }
         rewardScreen.show(reward);
     }
 
