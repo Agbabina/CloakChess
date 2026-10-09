@@ -4186,6 +4186,7 @@ public class Main extends Game {
         clearMoveAnim();
         menuVisible = false;
         bestiaryVisible = false;
+        enemyDeckVisible = false;
         tutorialVisible = false;
         evtVisible = false;
         omen = OMEN_NONE;
@@ -6540,6 +6541,7 @@ public class Main extends Game {
 
         renderStatusBorder();
         renderFrenzy();
+        if (enemyDeckVisible) renderEnemyDeckOverlay();
     }
 
 
