@@ -19,7 +19,7 @@ public class Enemy {
     private final Card.MovementType movementType;
     private MovementRules movementRules;
 
-    private static final int BOARD_SIZE = 5;
+    private static final int BOARD_SIZE = Board.SIZE;
     private static final int TILE_SIZE = 100;
 
     private boolean alive = true;
@@ -30,7 +30,8 @@ public class Enemy {
     private final int maxHealth;
     private int health;
 
-    // CURSE
+    // VARIANT / CURSE
+    private final EnemyVariant variant;
     private EnemyCurse curse = null;
 
     // MOVE / PUSH ANIMATION
@@ -65,23 +66,51 @@ public class Enemy {
 
     // CONSTRUCTORS
     public Enemy(int x, int y, Card.MovementType movementType, String texturePath) {
-        this(x, y, movementType, texturePath, 1, 0.5f);
+        this(x, y, movementType, texturePath, 1, 0.5f, EnemyVariant.NORMAL);
     }
 
     public Enemy(int x, int y, Card.MovementType movementType, String texturePath, int room, float difficulty) {
+        this(x, y, movementType, texturePath, room, difficulty, rollVariant(room));
+    }
+
+    public Enemy(int x, int y, Card.MovementType movementType, String texturePath,
+                 int room, float difficulty, EnemyVariant variant) {
         this.x = x;
         this.y = y;
-
         this.movementType = movementType;
+        this.variant = variant == null ? EnemyVariant.NORMAL : variant;
         this.movementRules = createMovementRules(movementType);
 
-        this.maxHealth = rollMaxHealth(room, difficulty);
+        this.maxHealth = this.variant == EnemyVariant.BOSS
+            ? this.variant.getBonusHealth()
+            : rollMaxHealth(room, difficulty) + this.variant.getBonusHealth() - 1;
         this.health = maxHealth;
 
         texture = new Texture(texturePath);
+        texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
         renderX = getBoardX() + x * TILE_SIZE;
         renderY = getBoardY() + y * TILE_SIZE;
+    }
+
+    private static EnemyVariant rollVariant(int room) {
+        if (room < 3) return EnemyVariant.NORMAL;
+        int roll = new Random().nextInt(100);
+        if (room >= 8 && roll < 12) return EnemyVariant.PLAGUEBEARER;
+        if (room >= 6 && roll < 27) return EnemyVariant.BERSERKER;
+        if (room >= 4 && roll < 42) return EnemyVariant.PHANTOM;
+        if (room >= 3 && roll < 58) return EnemyVariant.ARMORED;
+        return EnemyVariant.NORMAL;
+    }
+
+    public EnemyVariant getVariant() {
+        return variant;
+    }
+
+    public String getDisplayName() {
+        return variant == EnemyVariant.NORMAL
+            ? movementType.name()
+            : variant.getDisplayName() + " " + movementType.name();
     }
 
     // HEALTH ROLL
@@ -239,6 +268,14 @@ public class Enemy {
         float pieceSize = Player.TILE_SIZE * 0.90f;
         float offset = (Player.TILE_SIZE - pieceSize) / 2f;
 
+        switch (variant) {
+            case ARMORED: batch.setColor(.72f, .80f, .92f, 1f); break;
+            case PHANTOM: batch.setColor(.72f, .55f, 1f, .82f); break;
+            case BERSERKER: batch.setColor(1f, .38f, .30f, 1f); break;
+            case PLAGUEBEARER: batch.setColor(.55f, 1f, .40f, 1f); break;
+            case BOSS: batch.setColor(1f, .30f, .65f, 1f); break;
+            default: batch.setColor(1f, 1f, 1f, 1f); break;
+        }
         batch.draw(
             texture,
             renderX + offset,
@@ -246,6 +283,7 @@ public class Enemy {
             pieceSize,
             pieceSize
         );
+        batch.setColor(1f, 1f, 1f, 1f);
     }
 
     // MOVEMENT TOWARDS PLAYER
@@ -261,7 +299,7 @@ public class Enemy {
         }
 
         // Chameleon changes its movement rules every turn
-        if (movementType == Card.MovementType.CHAMELEON) {
+        if (movementType == Card.MovementType.CHAMELEON || variant == EnemyVariant.PHANTOM) {
             movementRules = randomChameleonRules();
         }
 
@@ -429,7 +467,9 @@ public class Enemy {
             return false;
         }
 
-        health = Math.max(0, health - amount);
+        if (amount <= 0) return false;
+        int adjustedDamage = variant == EnemyVariant.ARMORED ? Math.max(1, amount - 1) : amount;
+        health = Math.max(0, health - adjustedDamage);
 
         if (health == 0) {
             alive = false;
