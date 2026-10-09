@@ -469,6 +469,7 @@ public class Main extends Game {
     // Main menu
     private boolean menuVisible = true;
     private boolean bestiaryVisible = false;
+    private boolean enemyDeckVisible = false;
     private final Rectangle startButton = new Rectangle();
     private final Rectangle bestiaryButton = new Rectangle();
     private final Rectangle blitzButton = new Rectangle();
@@ -1212,23 +1213,33 @@ public class Main extends Game {
         );
 
         hudText(
-            "ROOM",
+            "FLOOR / ROOM",
             x0 + 238f,
             y0 + 18f,
-            .36f,
+            .32f,
             .68f,
             .70f,
             .78f
         );
 
         hudText(
-            String.valueOf(difficulty),
+            FloorProgression.floorForRoom(difficulty) + " / " + FloorProgression.roomWithinFloor(difficulty),
             x0 + 292f,
             y0 + 18f,
-            .52f,
-            .95f,
-            .80f,
-            .30f
+            .45f,
+            FloorProgression.isBossRoom(difficulty) ? 1f : .95f,
+            FloorProgression.isBossRoom(difficulty) ? .25f : .80f,
+            FloorProgression.isBossRoom(difficulty) ? .35f : .30f
+        );
+
+        hudText(
+            "ENEMY DECK [E]",
+            Gdx.graphics.getWidth() - 154f,
+            Gdx.graphics.getHeight() - 30f,
+            .42f,
+            .85f,
+            .68f,
+            1f
         );
 
         font.getData().setScale(1f);
@@ -1565,9 +1576,13 @@ public class Main extends Game {
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
             if (e.consumeLanded()) {
-                spawnShockwave(e.getX(), e.getY(), 0.9f);
-                spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 10, .7f, .65f, .55f, 25f);
-                startShake(0.12f, 4f);
+                spawnShockwave(e.getX(), e.getY(),
+                    e.getVariant() == EnemyVariant.BOSS ? 1.8f : 1.15f);
+                spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()),
+                    e.getVariant() == EnemyVariant.BOSS ? 26 : 18,
+                    .7f, .65f, .55f, e.getVariant() == EnemyVariant.BOSS ? 60f : 38f);
+                if (e.getVariant() == EnemyVariant.BOSS) startShake(.22f, 7f);
+                else startShake(0.12f, 4f);
                 moveSound.play();
             }
         }
@@ -2214,7 +2229,9 @@ public class Main extends Game {
             else glassedTurns.put(enemy, glass - 1);
             spawnFloat("+1 GLASS", tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 42f, .55f, .85f, 1f);
         }
-        int dealt = Math.min(amount, Math.max(0, enemy.getHealth()));
+        int effectiveDamage = enemy.getVariant() == EnemyVariant.ARMORED
+            ? Math.max(1, amount - 1) : amount;
+        int dealt = Math.min(effectiveDamage, Math.max(0, enemy.getHealth()));
         boolean died = enemy.takeDamage(amount);
         if (dealt > 0) spawnFloat("-" + dealt, tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 20f, fr, fg, fb);
         if (died) {
@@ -2228,6 +2245,21 @@ public class Main extends Game {
             burnTurns.remove(enemy);
             playSfx(enemyDeathSound);
             spawnCrumble(enemy.getX(), enemy.getY());
+            spawnBurst(tileCenterX(enemy.getX()), tileCenterY(enemy.getY()), 28,
+                .95f, .55f, .22f, 78f);
+            spawnShockwave(enemy.getX(), enemy.getY(),
+                enemy.getVariant() == EnemyVariant.BOSS ? 2.2f : 1.25f);
+            startShake(enemy.getVariant() == EnemyVariant.BOSS ? .45f : .16f,
+                enemy.getVariant() == EnemyVariant.BOSS ? 15f : 4f);
+            if (enemy.getVariant() == EnemyVariant.BOSS) {
+                showPopup("FLOOR 5 BOSS DEFEATED!", 1f, .65f, .25f, 2.4f);
+            }
+            if (enemy.getVariant() == EnemyVariant.PLAGUEBEARER) {
+                board.poisonTile(enemy.getX(), enemy.getY());
+                spawnBurst(tileCenterX(enemy.getX()), tileCenterY(enemy.getY()), 22,
+                    .35f, 1f, .25f, 55f);
+                message("Plaguebearer burst! Toxic tile created.", 1.5f);
+            }
             if (pz != null && pz > 0) spreadPlague(enemy, Math.max(2, pz / 2 + 1));
             if (curse == EnemyCurse.VOLATILE) explodeVolatile(enemy);
             if (curse==EnemyCurse.MARTYR) empowerAllies(enemy);
@@ -4153,6 +4185,7 @@ public class Main extends Game {
         clearMoveAnim();
         menuVisible = false;
         bestiaryVisible = false;
+        enemyDeckVisible = false;
         tutorialVisible = false;
         evtVisible = false;
         omen = OMEN_NONE;
@@ -4678,8 +4711,28 @@ public class Main extends Game {
             return;
         }
 
+        if (enemyDeckVisible) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.E) || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+                enemyDeckVisible = false;
+                return;
+            }
+            if (Gdx.input.justTouched()) {
+                float tx = Gdx.input.getX(), ty = Gdx.graphics.getHeight() - Gdx.input.getY();
+                if (tx < Gdx.graphics.getWidth() * .08f || tx > Gdx.graphics.getWidth() * .92f
+                    || ty < Gdx.graphics.getHeight() * .08f || ty > Gdx.graphics.getHeight() * .92f) {
+                    enemyDeckVisible = false;
+                }
+            }
+            return;
+        }
+
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
+            if (ux >= Gdx.graphics.getWidth() - 180f && uy >= Gdx.graphics.getHeight() - 70f) {
+                enemyDeckVisible = true;
+                clickSound.play();
+                return;
+            }
             if (blitzMode && blitzManager != null && blitzGambleButton.contains(ux, uy)) {
                 if (blitzManager.activateTimeGamble()) {
                     clickSound.play();
@@ -4695,6 +4748,10 @@ public class Main extends Game {
         }
         if (handleCardDrag()) return;
 
+        if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
+            enemyDeckVisible = true;
+            return;
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) selectSpell(0);
         if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2)) selectSpell(1);
         if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)) selectSpell(2);
@@ -5195,7 +5252,8 @@ public class Main extends Game {
             boolean critical = invisibleTurns > 0 ? assassinate(target) : rollCriticalCapture(target);
 
             if (!critical) {
-                int captureDamage = rollCaptureDamage();
+                int cardDamage = cc == null ? 1 : cc.getAttackDamage();
+                int captureDamage = Math.max(rollCaptureDamage(), cardDamage);
                 if (cc != null && cc.hasFury()) {
                     captureDamage += 1;
                     spawnFloat("FURY +1", tileCenterX(player.getX()), tileCenterY(player.getY()) + 62f, 1f, .3f, .3f);
@@ -5334,6 +5392,9 @@ public class Main extends Game {
         EnemyCurse c = enemyCurses.get(e);
         if (c == EnemyCurse.HASTY) return 2;
         if (c == EnemyCurse.RELENTLESS && playerHp * 2 <= playerMaxHp) return 2;
+        if (e.getVariant() == EnemyVariant.BOSS) return 2;
+        if (e.getVariant() == EnemyVariant.BERSERKER
+            && e.getHealth() * 2 <= e.getMaxHealth()) return 2;
         return 1;
     }
     // Crippling: one card loses a use. It never exhausts a card, so your hand can't be emptied by it.
@@ -5510,7 +5571,9 @@ public class Main extends Game {
             float by = Player.getBoardY() + random.nextFloat() * Player.TILE_SIZE * Player.BOARD_SIZE;
             spawnBurst(bx, by, 10, MathUtils.random(.5f, 1f), MathUtils.random(.5f, 1f), MathUtils.random(.3f, 1f), 120f);
         }
-        showPopup("ROOM CLEAR!", .4f, 1f, .55f, 1.4f);
+        showPopup(FloorProgression.isBossRoom(difficulty)
+            ? "FLOOR 5 CLEARED!" : "ROOM CLEAR!",
+            .4f, 1f, .55f, FloorProgression.isBossRoom(difficulty) ? 2.4f : 1.4f);
         updateObjectiveProgress();
         if (blitzMode && blitzManager != null) {
             int roomPoints = blitzManager.roomClear();
@@ -6476,6 +6539,82 @@ public class Main extends Game {
 
         renderStatusBorder();
         renderFrenzy();
+        if (enemyDeckVisible) renderEnemyDeckOverlay();
+    }
+
+
+    private void renderEnemyDeckOverlay() {
+        float w = Gdx.graphics.getWidth();
+        float h = Gdx.graphics.getHeight();
+        float panelW = Math.min(650f, w - 36f);
+        float panelH = Math.min(470f, h - 50f);
+        float x = (w - panelW) / 2f;
+        float y = (h - panelH) / 2f;
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(.025f, .03f, .06f, .96f);
+        shapeRenderer.rect(x, y, panelW, panelH);
+        shapeRenderer.setColor(.48f, .20f, .78f, 1f);
+        shapeRenderer.rect(x, y + panelH - 5f, panelW, 5f);
+        shapeRenderer.end();
+
+        batch.begin();
+        font.getData().setScale(.9f);
+        font.setColor(1f, .78f, .30f, 1f);
+        font.draw(batch, "ENEMY DECK  -  FLOOR "
+            + FloorProgression.floorForRoom(difficulty)
+            + " / ROOM " + FloorProgression.roomWithinFloor(difficulty),
+            x + 18f, y + panelH - 24f);
+
+        font.getData().setScale(.58f);
+        font.setColor(.75f, .82f, 1f, 1f);
+        font.draw(batch, "FLOOR ROSTER", x + 18f, y + panelH - 58f);
+        String[] roster = {
+            "Pawn - simple pressure",
+            "Knight - jumping threat",
+            "Bishop - diagonal hunter",
+            "Rook - straight-line hunter",
+            "Jester - pattern movement",
+            "Mad Rook - unpredictable movement",
+            "Chameleon - changes movement",
+            "Armored - +1 HP, resists damage",
+            "Phantom - changes movement each turn",
+            "Berserker - moves twice when wounded",
+            "Plaguebearer - leaves a toxic tile",
+            "FLOOR 5 BOSS - 12 HP, moves twice"
+        };
+        int floor = FloorProgression.floorForRoom(difficulty);
+        int visible = Math.min(roster.length, 7 + floor);
+        for (int i = 0; i < visible; i++) {
+            font.setColor(i >= 7 ? new Color(.8f, .55f, 1f, 1f) : Color.WHITE);
+            font.draw(batch, roster[i], x + 22f, y + panelH - 83f - i * 22f);
+        }
+
+        float rightX = x + panelW * .54f;
+        font.setColor(.75f, .82f, 1f, 1f);
+        font.draw(batch, "THIS ROOM", rightX, y + panelH - 58f);
+        int row = 0;
+        for (int i = 0; i < enemies.size && row < 12; i++) {
+            Enemy e = enemies.get(i);
+            String state = e.isAlive()
+                ? e.getHealth() + "/" + e.getMaxHealth() + " HP"
+                : "DEFEATED";
+            font.setColor(e.getVariant() == EnemyVariant.BOSS
+                ? new Color(1f, .35f, .45f, 1f)
+                : (e.isAlive() ? Color.WHITE : Color.GRAY));
+            font.draw(batch, e.getDisplayName() + "  -  " + state,
+                rightX, y + panelH - 83f - row * 22f);
+            row++;
+        }
+        if (row == 0) {
+            font.setColor(Color.LIGHT_GRAY);
+            font.draw(batch, "No enemies spawned.", rightX, y + panelH - 83f);
+        }
+        font.setColor(.7f, .72f, .8f, 1f);
+        font.draw(batch, "Tap outside or press E / ESC to close", x + 18f, y + 18f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
     }
 
     @Override

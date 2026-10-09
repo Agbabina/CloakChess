@@ -35,6 +35,12 @@ public class Board {
         return SIZE;
     }
 
+    /** Marks one tile as toxic without rerolling the rest of the board. */
+    public void poisonTile(int x, int y) {
+        if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return;
+        poisonedTiles[y][x] = true;
+    }
+
     /** True if the tile at board coordinates (x, y) is poisoned. Out-of-range is false. */
     public boolean isPoisoned(int x, int y) {
         if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return false;
