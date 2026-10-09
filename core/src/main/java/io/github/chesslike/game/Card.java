@@ -305,6 +305,31 @@ public class Card {
         return usesRemaining;
     }
 
+    /** Base capture damage for this card's current movement form. */
+    public int getAttackDamage() {
+        switch (currentForm) {
+            case KNIGHT:
+            case ROOK:
+            case QUEEN:
+            case MADROOK:
+            case ARCHBISHOP:
+                return 2;
+            case LEAPER:
+                return 3;
+            case BISHOP:
+            case PAWN:
+            case DASH:
+            case JESTER:
+            case BLINKER:
+            case CHAMELEON:
+            case COUNCILLOR:
+            case CLAUDE:
+            case SHIFTER:
+            default:
+                return 1;
+        }
+    }
+
     public boolean isUsed() {
         return usesRemaining <= 0;
     }
@@ -783,6 +808,11 @@ public class Card {
         else font.setColor(0.30f, 0.65f, 0.95f, 1f);
 
         font.draw(batch, movementType.toString(), drawX + 20f * scale, drawY + 75f * scale);
+
+        // ATTACK DAMAGE
+        font.getData().setScale(0.70f * scale);
+        font.setColor(isUsed() ? Color.DARK_GRAY : new Color(1f, 0.42f, 0.30f, 1f));
+        font.draw(batch, "DMG " + getAttackDamage(), drawX + 20f * scale, drawY + 55f * scale);
 
         // DESCRIPTION
         font.getData().setScale(0.72f * scale);
