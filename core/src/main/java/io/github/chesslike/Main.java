@@ -1576,8 +1576,12 @@ public class Main extends Game {
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
             if (e.consumeLanded()) {
-                spawnShockwave(e.getX(), e.getY(), 0.9f);
-                spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 10, .7f, .65f, .55f, 25f);
+                spawnShockwave(e.getX(), e.getY(),
+                    e.getVariant() == EnemyVariant.BOSS ? 1.8f : 1.15f);
+                spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()),
+                    e.getVariant() == EnemyVariant.BOSS ? 26 : 18,
+                    .7f, .65f, .55f, e.getVariant() == EnemyVariant.BOSS ? 60f : 38f);
+                if (e.getVariant() == EnemyVariant.BOSS) startShake(.22f, 7f);
                 startShake(0.12f, 4f);
                 moveSound.play();
             }
@@ -2226,7 +2230,9 @@ public class Main extends Game {
             else glassedTurns.put(enemy, glass - 1);
             spawnFloat("+1 GLASS", tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 42f, .55f, .85f, 1f);
         }
-        int dealt = Math.min(amount, Math.max(0, enemy.getHealth()));
+        int effectiveDamage = enemy.getVariant() == EnemyVariant.ARMORED
+            ? Math.max(1, amount - 1) : amount;
+        int dealt = Math.min(effectiveDamage, Math.max(0, enemy.getHealth()));
         boolean died = enemy.takeDamage(amount);
         if (dealt > 0) spawnFloat("-" + dealt, tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 20f, fr, fg, fb);
         if (died) {
@@ -6578,7 +6584,7 @@ public class Main extends Game {
             "FLOOR 5 BOSS - 12 HP, moves twice"
         };
         int floor = FloorProgression.floorForRoom(difficulty);
-        int visible = Math.min(roster.length, 6 + floor);
+        int visible = Math.min(roster.length, 7 + floor);
         for (int i = 0; i < visible; i++) {
             font.setColor(i >= 7 ? new Color(.8f, .55f, 1f, 1f) : Color.WHITE);
             font.draw(batch, roster[i], x + 22f, y + panelH - 83f - i * 22f);
