@@ -8,7 +8,7 @@ public class EnemyGenerator {
 
     private final Random random = new Random();
 
-    private static final int BOARD_SIZE = 5;
+    private static final int BOARD_SIZE = Board.SIZE;
 
     // How many enemies can spawn initially
     private static final int MIN_ENEMIES = 1;
@@ -27,6 +27,17 @@ public class EnemyGenerator {
     public Array<Enemy> generateEnemies(int difficulty, int playerX, int playerY, BlitzOmen omen) {
 
         Array<Enemy> enemies = new Array<>();
+
+        // Floor 5 ends with a guaranteed boss encounter (room 20).
+        if (omen == null && FloorProgression.isBossRoom(difficulty)) {
+            int bx = BOARD_SIZE / 2;
+            int by = BOARD_SIZE - 1;
+            enemies.add(new Enemy(
+                bx, by, Card.MovementType.QUEEN, "b_queen_png_256px.png",
+                difficulty, 1f, EnemyVariant.BOSS
+            ));
+            return enemies;
+        }
 
         int enemyCount = omen == null
             ? getEnemyCount(difficulty)
@@ -53,7 +64,8 @@ public class EnemyGenerator {
 
             Card.MovementType type = generateEnemyType(difficulty);
 
-            Enemy enemy = createEnemy(x, y, type, difficulty);
+            EnemyVariant variant = rollVariant(difficulty);
+            Enemy enemy = createEnemy(x, y, type, difficulty, variant);
 
             if (omen != null) {
                 enemy.setCurse(BlitzEnemyCurses.roll(difficulty, omen));
@@ -116,7 +128,7 @@ public class EnemyGenerator {
     // CREATE ENEMY
     // =========================================
 
-    private Enemy createEnemy(int x, int y, Card.MovementType type, int room) {
+    private Enemy createEnemy(int x, int y, Card.MovementType type, int room, EnemyVariant variant) {
 
         String texture = getTexture(type);
 
@@ -124,7 +136,17 @@ public class EnemyGenerator {
         // The chance of 4 HP climbs 10% per room after room 10.
         float chanceOfFour = Math.max(0f, Math.min(1f, (room - 10) / 10f));
 
-        return new Enemy(x, y, type, texture, room, chanceOfFour);
+        return new Enemy(x, y, type, texture, room, chanceOfFour, variant);
+    }
+
+
+    private EnemyVariant rollVariant(int room) {
+        int roll = random.nextInt(100);
+        if (room >= 8 && roll < 12) return EnemyVariant.PLAGUEBEARER;
+        if (room >= 6 && roll < 27) return EnemyVariant.BERSERKER;
+        if (room >= 4 && roll < 42) return EnemyVariant.PHANTOM;
+        if (room >= 3 && roll < 58) return EnemyVariant.ARMORED;
+        return EnemyVariant.NORMAL;
     }
 
     // =========================================
