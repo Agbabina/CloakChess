@@ -33,7 +33,7 @@ public class EnemyGenerator {
             int bx = BOARD_SIZE / 2;
             int by = BOARD_SIZE - 1;
             enemies.add(new Enemy(
-                bx, by, Card.MovementType.QUEEN, "b_queen_png_256px.png",
+                bx, by, Card.MovementType.QUEEN, "boss_hollow_king_p1_idle.png",
                 difficulty, 1f, EnemyVariant.BOSS
             ));
             return enemies;

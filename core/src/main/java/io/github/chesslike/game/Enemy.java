@@ -273,7 +273,7 @@ public class Enemy {
             case PHANTOM: batch.setColor(.72f, .55f, 1f, .82f); break;
             case BERSERKER: batch.setColor(1f, .38f, .30f, 1f); break;
             case PLAGUEBEARER: batch.setColor(.55f, 1f, .40f, 1f); break;
-            case BOSS: batch.setColor(1f, .30f, .65f, 1f); break;
+            case BOSS: batch.setColor(1f, 1f, 1f, 1f); break;
             default: batch.setColor(1f, 1f, 1f, 1f); break;
         }
         batch.draw(
