@@ -28,12 +28,25 @@ public class EnemyGenerator {
 
         Array<Enemy> enemies = new Array<>();
 
-        // Floor 5 ends with a guaranteed boss encounter (room 20).
+        // Guaranteed boss encounters: Floor 3, Floor 5, and Floor 8.
         if (omen == null && FloorProgression.isBossRoom(difficulty)) {
             int bx = BOARD_SIZE / 2;
             int by = BOARD_SIZE - 1;
+            int bossNumber = FloorProgression.bossNumberForRoom(difficulty);
+            String bossTexture;
+            switch (bossNumber) {
+                case 1:
+                    bossTexture = "boss_hollow_king_p1_idle.png";
+                    break;
+                case 2:
+                    bossTexture = "boss_hollow_king_p2_idle.png";
+                    break;
+                default:
+                    bossTexture = "boss_hollow_king_p3_idle.png";
+                    break;
+            }
             enemies.add(new Enemy(
-                bx, by, Card.MovementType.QUEEN, "boss_hollow_king_p1_idle.png",
+                bx, by, Card.MovementType.QUEEN, bossTexture,
                 difficulty, 1f, EnemyVariant.BOSS
             ));
             return enemies;
