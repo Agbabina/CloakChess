@@ -143,7 +143,7 @@ public class EnemyGenerator {
 
     private Enemy createEnemy(int x, int y, Card.MovementType type, int room, EnemyVariant variant) {
 
-        String texture = getTexture(type);
+        String texture = getTexture(type, variant);
 
         // Rooms 6-10 = 2 HP, rooms 11+ roll 3 or 4.
         // The chance of 4 HP climbs 10% per room after room 10.
@@ -155,18 +155,55 @@ public class EnemyGenerator {
 
     private EnemyVariant rollVariant(int room) {
         int roll = random.nextInt(100);
-        if (room >= 8 && roll < 12) return EnemyVariant.PLAGUEBEARER;
-        if (room >= 6 && roll < 27) return EnemyVariant.BERSERKER;
-        if (room >= 4 && roll < 42) return EnemyVariant.PHANTOM;
-        if (room >= 3 && roll < 58) return EnemyVariant.ARMORED;
-        return EnemyVariant.NORMAL;
+        if (room < 3) return EnemyVariant.NORMAL;
+
+        // Each of the dedicated enemy sprites maps to a real archetype.
+        // The roster expands with difficulty so early rooms stay readable.
+        if (room >= 8) {
+            if (roll < 10) return EnemyVariant.PLAGUEBEARER;
+            if (roll < 20) return EnemyVariant.NECROMANCER;
+            if (roll < 30) return EnemyVariant.SUMMONER;
+            if (roll < 40) return EnemyVariant.PYROMANCER;
+            if (roll < 50) return EnemyVariant.CRYOMANCER;
+            if (roll < 60) return EnemyVariant.MENDER;
+            if (roll < 70) return EnemyVariant.STRIKER;
+            if (roll < 80) return EnemyVariant.BERSERKER;
+            if (roll < 90) return EnemyVariant.ARMORED;
+            return EnemyVariant.PHANTOM;
+        }
+        if (room >= 6) {
+            if (roll < 18) return EnemyVariant.BERSERKER;
+            if (roll < 34) return EnemyVariant.PHANTOM;
+            if (roll < 50) return EnemyVariant.ARMORED;
+            if (roll < 63) return EnemyVariant.MENDER;
+            if (roll < 76) return EnemyVariant.STRIKER;
+            if (roll < 88) return EnemyVariant.PYROMANCER;
+            return EnemyVariant.CRYOMANCER;
+        }
+        if (roll < 35) return EnemyVariant.ARMORED;
+        if (roll < 60) return EnemyVariant.PHANTOM;
+        if (roll < 80) return EnemyVariant.BERSERKER;
+        return EnemyVariant.MENDER;
     }
 
     // =========================================
     // TEXTURE
     // =========================================
 
-    private String getTexture(Card.MovementType type) {
+    private String getTexture(Card.MovementType type, EnemyVariant variant) {
+        switch (variant) {
+            case ARMORED: return "enemy_armored.png";
+            case BERSERKER: return "enemy_berserker.png";
+            case PHANTOM: return "enemy_phantom.png";
+            case PLAGUEBEARER: return "enemy_plaguebearer.png";
+            case MENDER: return "enemy_mender.png";
+            case PYROMANCER: return "enemy_pyromancer.png";
+            case CRYOMANCER: return "enemy_cryomancer.png";
+            case NECROMANCER: return "enemy_necromancer.png";
+            case STRIKER: return "enemy_striker.png";
+            case SUMMONER: return "enemy_summoner.png";
+            default: break;
+        }
 
         switch (type) {
 
