@@ -6291,9 +6291,10 @@ public class Main extends Game {
         Enemy e = tooltipEnemy;
 
         // Build the lines
-        String title = e.getMovementType().name();
+        String title = e.getDisplayName();
         Array<String> lines = new Array<>();
         lines.add("HP: " + e.getHealth() + "/" + e.getMaxHealth());
+        lines.add(e.getVariant().getDescription());
         EnemyCurse curse = enemyCurses.get(e);
         if (curse != null) lines.add(curse.getLabel() + ": " + curse.getDescription());
         CaptureCurse captureCurse = captureCurses.get(e);
