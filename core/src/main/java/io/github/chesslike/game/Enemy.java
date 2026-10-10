@@ -145,26 +145,22 @@ public class Enemy {
     // CREATE RULES
     private MovementRules createMovementRules(Card.MovementType type) {
         switch (type) {
-            case KNIGHT:
-                return new KnightRules();
-            case BISHOP:
-                return new BishopRules();
-            case ROOK:
-                return new RookRules();
-            case QUEEN:
-                return new QueenRules();
-            case PAWN:
-                return new PawnRules();
-            case JESTER:
-                return new JesterRules();
-            case BLINKER:
-                return new BlinkerRules();
-            case MADROOK:
-                return new MadRookRules();
-            case CHAMELEON:
-                return randomChameleonRules();
-            default:
-                throw new IllegalArgumentException("Unknown enemy type: " + type);
+            case KNIGHT: return new KnightRules();
+            case BISHOP: return new BishopRules();
+            case ROOK: return new RookRules();
+            case QUEEN: return new QueenRules();
+            case PAWN: return new PawnRules();
+            case DASH: return new DashRules();
+            case JESTER: return new JesterRules();
+            case BLINKER: return new BlinkerRules();
+            case MADROOK: return new MadRookRules();
+            case CHAMELEON: return new ChameleonRules();
+            case ARCHBISHOP: return new ArchbishopRules();
+            case COUNCILLOR: return new Councillor();
+            case CLAUDE: return new ClaudeRules();
+            case LEAPER: return new LeaperRules();
+            case SHIFTER: return randomChameleonRules();
+            default: throw new IllegalArgumentException("Unknown enemy type: " + type);
         }
     }
 
@@ -299,7 +295,8 @@ public class Enemy {
         }
 
         // Chameleon changes its movement rules every turn
-        if (movementType == Card.MovementType.CHAMELEON || variant == EnemyVariant.PHANTOM) {
+        if (movementType == Card.MovementType.CHAMELEON || movementType == Card.MovementType.SHIFTER
+            || variant == EnemyVariant.PHANTOM) {
             movementRules = randomChameleonRules();
         }
 
