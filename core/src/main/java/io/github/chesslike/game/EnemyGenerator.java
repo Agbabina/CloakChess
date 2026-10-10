@@ -163,9 +163,9 @@ public class EnemyGenerator {
         int roll = random.nextInt(100);
 
         if (room >= 8 && roll < 3) return EnemyVariant.PLAGUEBEARER;
-        if (room >= 6 && roll < 8) return EnemyVariant.BERSERKER;
-        if (room >= 4 && roll < 14) return EnemyVariant.PHANTOM;
-        if (room >= 3 && roll < 22) return EnemyVariant.ARMORED;
+        if (room >= 6 && roll >= 3 && roll < 8) return EnemyVariant.BERSERKER;
+        if (room >= 4 && roll >= 8 && roll < 14) return EnemyVariant.PHANTOM;
+        if (room >= 3 && roll >= 14 && roll < 22) return EnemyVariant.ARMORED;
 
         return EnemyVariant.NORMAL;
     }
