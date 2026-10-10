@@ -107,15 +107,15 @@ public class Main extends Game {
     // ---------- Omens (random room modifiers) ----------
 
     private static final int OMEN_NONE = 0, OMEN_BLOOD_MOON = 1, OMEN_FORTUNE = 2, OMEN_VENOM = 3, OMEN_MANA_TIDE = 4, OMEN_IRON = 5,
-        OMEN_FAMINE = 6, OMEN_WRATH = 7, OMEN_ECLIPSE = 8, OMEN_DREAD = 9, OMEN_WITHERING = 10;
-    private static final int OMEN_COUNT = 10;
+        OMEN_FAMINE = 6, OMEN_WRATH = 7, OMEN_ECLIPSE = 8, OMEN_DREAD = 9;
+    private static final int OMEN_COUNT = 9;
     private static final int OMEN_FIRST_BRUTAL = 6;
     private static final String[] OMEN_NAMES = {"", "Blood Moon", "Fortune's Eye", "Venom Mist", "Mana Tide", "Iron Tide",
-        "Famine", "Red Dawn", "Eclipse", "Dread", "Withering"};
+        "Famine", "Red Dawn", "Eclipse", "Dread"};
     private static final String[] OMEN_DESC = {"", "Every enemy is cursed. +50% room gold", "Critical captures: 40% chance",
         "Enemies start poisoned", "Spells cost 1 less mana", "Enemies start shielded. +50% room gold",
         "Card drops halved. -30% room gold", "Enemies hit for +1 damage", "Spells cost 1 more mana",
-        "DEF cannot block damage", "No healing while enemies remain"};
+        "DEF cannot block damage"};
     private static final float EVENT_CHANCE = 0.40f;
     private static final float BOLT_DURATION = 0.35f;
     private static final float UI_BTN_W = 120f, UI_BTN_H = 48f, UI_BTN_GAP = 7f;
@@ -1381,8 +1381,6 @@ public class Main extends Game {
                 return new Color(.60f, .45f, .90f, 1f);
             case OMEN_DREAD:
                 return new Color(.80f, .25f, .55f, 1f);
-            case OMEN_WITHERING:
-                return new Color(.60f, .65f, .55f, 1f);
             default:
                 return new Color(.8f, .8f, .8f, 1f);
         }
@@ -5578,11 +5576,13 @@ public class Main extends Game {
     }
 
     private void healPlayer(int amount) {
-        if (omen == OMEN_WITHERING && amount > 0 && enemies != null && !allEnemiesDefeated()
-            && !shopScreen.isVisible() && !evtVisible) {
-            spawnFloat("WITHERED", tileCenterX(player.getX()), tileCenterY(player.getY()) + 30f, .60f, .65f, .55f);
-            message("Withering! You can't heal right now.", 1.5f);
-            return;
+        if (amount <= 0 || player == null || playerHp >= playerMaxHp) return;
+        int oldHp = playerHp;
+        playerHp = Math.min(playerMaxHp, playerHp + amount);
+        int restored = playerHp - oldHp;
+        if (restored > 0) {
+            spawnFloat("+" + restored + " HP", tileCenterX(player.getX()),
+                tileCenterY(player.getY()) + 34f, .40f, 1f, .58f);
         }
     }
 
@@ -6315,9 +6315,10 @@ public class Main extends Game {
         Enemy e = tooltipEnemy;
 
         // Build the lines
-        String title = e.getMovementType().name();
+        String title = e.getDisplayName();
         Array<String> lines = new Array<>();
         lines.add("HP: " + e.getHealth() + "/" + e.getMaxHealth());
+        lines.add(e.getVariant().getDescription());
         EnemyCurse curse = enemyCurses.get(e);
         if (curse != null) lines.add(curse.getLabel() + ": " + curse.getDescription());
         CaptureCurse captureCurse = captureCurses.get(e);
