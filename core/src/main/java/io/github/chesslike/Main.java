@@ -5277,6 +5277,17 @@ public class Main extends Game {
                 damagePlayer(1);
                 message("Thorns! The capture hurt you.", 1.5f);
             }
+            if (curse== EnemyCurse.GREEDY){
+                gold-=15;
+                message("Enemy has stole 15 gold from you", 1.5f);
+            }
+            if (curse ==EnemyCurse.SAPPING){
+                mana-=2;
+                message("Enemy has stole 2 mana from you", 1.5f);
+            }
+            if (curse== EnemyCurse.MAIMING){
+                playerMaxHp-=1;
+            }
 
             if (cc != null && !gameOverScreen.isVisible()) {
                 if (cc.hasVampiric()) healPlayer(1);
@@ -5458,16 +5469,6 @@ public class Main extends Game {
                 message("Enemy hit you! (-" + hit + ")", 1.5f);
                 if (gameOverScreen.isVisible()) return;
 
-                if (curse == EnemyCurse.GREEDY) {
-                    int stolen = Math.min(gold, 10);
-                    gold -= stolen;
-                    if (stolen > 0) message("Greedy! Stole " + stolen + " gold", 1.5f);
-                } else if (curse == EnemyCurse.SAPPING) {
-                    mana = Math.max(0, mana - 2);
-                    message("Sapping! -2 mana", 1.5f);
-                }
-
-                killEnemy(e);
             }
         }
 
@@ -5920,7 +5921,7 @@ public class Main extends Game {
             showPopup("STABILIZED!  CORRUPTION -15", .55f, .75f, 1f, 1.0f);
             message("The board stabilizes.", 1.5f);
         } else if (item.kind == ShopScreen.Kind.POTION) {
-            healPlayer(POTION_HEAL + (hasRelic(Relic.Blessing.HEARTY_BREW) ? 1 : 0));
+            healPlayer(2);
             message("Potion bought!", 1.5f);
         } else if (item.kind == ShopScreen.Kind.SPELL) {
             ownedSpells.add(item.spell);
@@ -6069,7 +6070,7 @@ public class Main extends Game {
                 spawnFloat("ARROWPROOF", tileCenterX(hit.getX()), tileCenterY(hit.getY()) + 34f, .85f, .55f, .25f);
                 message("Arrowproof! The arrow fizzled.", 1.2f);
             } else {
-                damageEnemy(hit, 999);
+                damageEnemy(hit, 2);
             }
         }
         pendingHitEnemy = null;
