@@ -215,7 +215,6 @@ public class EnemyGenerator {
 
             // Reuse existing art until dedicated enemy sprites are drawn.
             case DASH:
-            case PAWN:
             case SHIFTER:
                 return "b_pawn_png_256px.png";
             case LEAPER:
