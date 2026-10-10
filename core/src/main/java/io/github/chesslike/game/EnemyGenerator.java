@@ -157,33 +157,36 @@ public class EnemyGenerator {
         int roll = random.nextInt(100);
         if (room < 3) return EnemyVariant.NORMAL;
 
-        // Each of the dedicated enemy sprites maps to a real archetype.
-        // The roster expands with difficulty so early rooms stay readable.
-        if (room >= 8) {
-            if (roll < 10) return EnemyVariant.PLAGUEBEARER;
-            if (roll < 20) return EnemyVariant.NECROMANCER;
-            if (roll < 30) return EnemyVariant.SUMMONER;
-            if (roll < 40) return EnemyVariant.PYROMANCER;
-            if (roll < 50) return EnemyVariant.CRYOMANCER;
-            if (roll < 60) return EnemyVariant.MENDER;
-            if (roll < 70) return EnemyVariant.STRIKER;
-            if (roll < 80) return EnemyVariant.BERSERKER;
-            if (roll < 90) return EnemyVariant.ARMORED;
-            return EnemyVariant.PHANTOM;
+        // Variants are deliberately uncommon. Most enemies should remain
+        // ordinary chess pieces; the special roster unlocks gradually.
+        if (room < 4) {
+            return roll < 3 ? EnemyVariant.ARMORED : EnemyVariant.NORMAL; // 3%
         }
-        if (room >= 6) {
-            if (roll < 18) return EnemyVariant.BERSERKER;
-            if (roll < 34) return EnemyVariant.PHANTOM;
-            if (roll < 50) return EnemyVariant.ARMORED;
-            if (roll < 63) return EnemyVariant.MENDER;
-            if (roll < 76) return EnemyVariant.STRIKER;
-            if (roll < 88) return EnemyVariant.PYROMANCER;
-            return EnemyVariant.CRYOMANCER;
+        if (room < 6) {
+            if (roll < 3) return EnemyVariant.ARMORED; // 3%
+            if (roll < 5) return EnemyVariant.PHANTOM; // 2%
+            return EnemyVariant.NORMAL;
         }
-        if (roll < 35) return EnemyVariant.ARMORED;
-        if (roll < 60) return EnemyVariant.PHANTOM;
-        if (roll < 80) return EnemyVariant.BERSERKER;
-        return EnemyVariant.MENDER;
+        if (room < 8) {
+            if (roll < 3) return EnemyVariant.ARMORED; // 3%
+            if (roll < 5) return EnemyVariant.PHANTOM; // 2%
+            if (roll < 7) return EnemyVariant.BERSERKER; // 2%
+            if (roll < 8) return EnemyVariant.MENDER; // 1%
+            return EnemyVariant.NORMAL;
+        }
+
+        // Room 8+: 15% total special enemies, spread across the real sprites.
+        if (roll < 3) return EnemyVariant.ARMORED;       // 3%
+        if (roll < 5) return EnemyVariant.PHANTOM;       // 2%
+        if (roll < 7) return EnemyVariant.BERSERKER;     // 2%
+        if (roll < 9) return EnemyVariant.PLAGUEBEARER;  // 2%
+        if (roll < 10) return EnemyVariant.MENDER;       // 1%
+        if (roll < 11) return EnemyVariant.PYROMANCER;   // 1%
+        if (roll < 12) return EnemyVariant.CRYOMANCER;   // 1%
+        if (roll < 13) return EnemyVariant.NECROMANCER;  // 1%
+        if (roll < 14) return EnemyVariant.STRIKER;      // 1%
+        if (roll < 15) return EnemyVariant.SUMMONER;     // 1%
+        return EnemyVariant.NORMAL;
     }
 
     // =========================================
