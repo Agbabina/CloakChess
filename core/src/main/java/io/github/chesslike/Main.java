@@ -5554,12 +5554,23 @@ public class Main extends Game {
     }
 
     private void healPlayer(int amount) {
-        if (omen == OMEN_WITHERING && amount > 0 && enemies != null && !allEnemiesDefeated()
+        if (amount <= 0 || playerHp >= playerMaxHp) return;
+
+        if (omen == OMEN_WITHERING && enemies != null && !allEnemiesDefeated()
             && !shopScreen.isVisible() && !evtVisible) {
             spawnFloat("WITHERED", tileCenterX(player.getX()), tileCenterY(player.getY()) + 30f, .60f, .65f, .55f);
             message("Withering! You can't heal right now.", 1.5f);
             return;
         }
+
+        int oldHp = playerHp;
+        playerHp = Math.min(playerMaxHp, playerHp + amount);
+        int healed = playerHp - oldHp;
+        if (healed <= 0) return;
+
+        playSfx(healSound);
+        spawnFloat("+" + healed + " HP", tileCenterX(player.getX()),
+            tileCenterY(player.getY()) + 34f, .35f, 1f, .48f);
     }
 
     private boolean enemyCapturedPlayer(Enemy e) {
