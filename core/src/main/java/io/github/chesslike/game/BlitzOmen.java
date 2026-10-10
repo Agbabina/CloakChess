@@ -9,7 +9,6 @@ public enum BlitzOmen {
     FAMINE("Famine", "Gold rewards are reduced, but room clears give +75% score."),
     ECLIPSE("Eclipse", "Cloak lasts longer and assassination kills give huge bonus score."),
     DREAD("Dread", "Enemies spawn with a higher chance of curses."),
-    WITHERING("Withering", "Every room gains one extra cursed enemy."),
     HUNTERS_MOON("Hunter's Moon", "Hunter enemies are more common and worth +100% score."),
     GREED("Greed", "Gold earned also becomes Blitz score."),
     OVERCHARGE("Overcharge", "The first spell each room costs 0 mana."),
