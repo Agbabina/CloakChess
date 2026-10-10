@@ -128,13 +128,29 @@ public class EnemyGenerator {
             return Card.MovementType.JESTER;
         }
 
-        // High difficulty (Room 5+)
-        if (roll < 15) return Card.MovementType.PAWN;
-        if (roll < 35) return Card.MovementType.BLINKER;
-        if (roll < 55) return Card.MovementType.MADROOK;
-        if (roll < 75) return Card.MovementType.CHAMELEON;
-        if (roll < 90) return Card.MovementType.JESTER;
-        return Card.MovementType.PAWN;
+        // High difficulty: the full enemy-piece roster begins appearing.
+        if (difficulty <= 6) {
+            if (roll < 12) return Card.MovementType.PAWN;
+            if (roll < 24) return Card.MovementType.BLINKER;
+            if (roll < 36) return Card.MovementType.MADROOK;
+            if (roll < 48) return Card.MovementType.CHAMELEON;
+            if (roll < 60) return Card.MovementType.JESTER;
+            if (roll < 70) return Card.MovementType.LEAPER;
+            if (roll < 80) return Card.MovementType.CLAUDE;
+            if (roll < 90) return Card.MovementType.ARCHBISHOP;
+            return Card.MovementType.COUNCILLOR;
+        }
+
+        if (roll < 10) return Card.MovementType.PAWN;
+        if (roll < 20) return Card.MovementType.BLINKER;
+        if (roll < 30) return Card.MovementType.MADROOK;
+        if (roll < 40) return Card.MovementType.CHAMELEON;
+        if (roll < 50) return Card.MovementType.JESTER;
+        if (roll < 60) return Card.MovementType.LEAPER;
+        if (roll < 70) return Card.MovementType.CLAUDE;
+        if (roll < 80) return Card.MovementType.ARCHBISHOP;
+        if (roll < 90) return Card.MovementType.COUNCILLOR;
+        return Card.MovementType.DASH;
     }
 
     // =========================================
@@ -196,6 +212,19 @@ public class EnemyGenerator {
 
             case CHAMELEON:
                 return "chameleon.png";
+
+            // Reuse existing art until dedicated enemy sprites are drawn.
+            case DASH:
+            case PAWN:
+            case SHIFTER:
+                return "b_pawn_png_256px.png";
+            case LEAPER:
+            case CLAUDE:
+                return "b_knight_png_256px.png";
+            case ARCHBISHOP:
+                return "b_bishop_png_256px.png";
+            case COUNCILLOR:
+                return "b_queen_png_256px.png";
 
             default:
                 return "b_pawn_png_256px.png";
