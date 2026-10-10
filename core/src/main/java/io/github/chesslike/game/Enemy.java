@@ -144,6 +144,17 @@ public class Enemy {
 
     // CREATE RULES
     private MovementRules createMovementRules(Card.MovementType type) {
+        // These archetypes have distinct movement patterns instead of being
+        // fake extra chess-piece types.
+        switch (variant) {
+            case STRIKER: return new KnightRules();
+            case PYROMANCER: return new BishopRules();
+            case CRYOMANCER: return new RookRules();
+            case MENDER: return new BishopRules();
+            case NECROMANCER: return randomChameleonRules();
+            case SUMMONER: return new QueenRules();
+            default: break;
+        }
         switch (type) {
             case KNIGHT:
                 return new KnightRules();
@@ -273,6 +284,12 @@ public class Enemy {
             case PHANTOM: batch.setColor(.72f, .55f, 1f, .82f); break;
             case BERSERKER: batch.setColor(1f, .38f, .30f, 1f); break;
             case PLAGUEBEARER: batch.setColor(.55f, 1f, .40f, 1f); break;
+            case MENDER: batch.setColor(.55f, 1f, .72f, 1f); break;
+            case PYROMANCER: batch.setColor(1f, .55f, .30f, 1f); break;
+            case CRYOMANCER: batch.setColor(.45f, .85f, 1f, 1f); break;
+            case NECROMANCER: batch.setColor(.75f, .55f, .95f, 1f); break;
+            case STRIKER: batch.setColor(1f, .75f, .35f, 1f); break;
+            case SUMMONER: batch.setColor(.85f, .65f, 1f, 1f); break;
             case BOSS: batch.setColor(1f, 1f, 1f, 1f); break;
             default: batch.setColor(1f, 1f, 1f, 1f); break;
         }
@@ -298,8 +315,10 @@ public class Enemy {
             return false;
         }
 
-        // Chameleon changes its movement rules every turn
-        if (movementType == Card.MovementType.CHAMELEON || variant == EnemyVariant.PHANTOM) {
+        // Chameleons and phantoms change their movement pattern each turn.
+        if (movementType == Card.MovementType.CHAMELEON
+            || variant == EnemyVariant.PHANTOM
+            || variant == EnemyVariant.NECROMANCER) {
             movementRules = randomChameleonRules();
         }
 
@@ -459,6 +478,14 @@ public class Enemy {
 
     public int getMaxHealth() {
         return maxHealth;
+    }
+
+    /** Restores health without exceeding this enemy's maximum. Returns actual HP restored. */
+    public int heal(int amount) {
+        if (!alive || amount <= 0 || health >= maxHealth) return 0;
+        int before = health;
+        health = Math.min(maxHealth, health + amount);
+        return health - before;
     }
 
     // DAMAGE / DEATH

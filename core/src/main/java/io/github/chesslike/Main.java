@@ -5382,6 +5382,10 @@ public class Main extends Game {
                 else stunnedTurns.put(e, stun - 1);
                 continue;
             }
+            if (e.getVariant() == EnemyVariant.MENDER) {
+                mendNearbyAlly(e);
+            }
+
             int startX = e.getX(), startY = e.getY();
             int moves = enemyMoveCount(e);
 
@@ -5398,6 +5402,26 @@ public class Main extends Game {
                     break;
                 }
             }
+        }
+    }
+
+    // Menders prioritize wounded allies and restore 1 HP to one ally within two tiles.
+    private void mendNearbyAlly(Enemy mender) {
+        Enemy target = null;
+        int bestMissingHealth = 0;
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy ally = enemies.get(i);
+            if (ally == mender || !ally.isAlive() || ally.getHealth() >= ally.getMaxHealth()) continue;
+            int distance = Math.abs(ally.getX() - mender.getX()) + Math.abs(ally.getY() - mender.getY());
+            if (distance > 2) continue;
+            int missing = ally.getMaxHealth() - ally.getHealth();
+            if (missing > bestMissingHealth) {
+                bestMissingHealth = missing;
+                target = ally;
+            }
+        }
+        if (target != null && target.heal(1) > 0) {
+            spawnFloat("+1", tileCenterX(target.getX()), tileCenterY(target.getY()) + 28f, .45f, 1f, .65f);
         }
     }
 
