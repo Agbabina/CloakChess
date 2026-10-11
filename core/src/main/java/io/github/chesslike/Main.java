@@ -149,6 +149,11 @@ public class Main extends Game {
     private final Rectangle pactSlotButton = new Rectangle();
     private final Rectangle pactsButton = new Rectangle();
     private final Rectangle upgradesButton = new Rectangle();
+    private final Rectangle badgeShopButton = new Rectangle();
+    private final Rectangle badgeUseButton = new Rectangle();
+    private int augmentBadges = 0;
+    private boolean usingAugmentBadge = false;
+    private static final int AUGMENT_BADGE_COST = 8;
     private final Rectangle menuPanel = new Rectangle();
     private final String[] evtOptions = new String[3];
     private final boolean[] evtEnabled = new boolean[3];
@@ -3210,6 +3215,7 @@ public class Main extends Game {
         souls = metaPrefs.getInteger("souls", 0);
         for (int i = 0; i < upLevels.length; i++) upLevels[i] = metaPrefs.getInteger("up" + i, 0);
         pactSlots = MathUtils.clamp(metaPrefs.getInteger("pactSlots", 1), 1, 3);
+        augmentBadges = Math.max(0, metaPrefs.getInteger("augmentBadges", 0));
         for (int i = 0; i < PACT_COUNT; i++) pactOn[i] = metaPrefs.getBoolean("pact" + i, false);
     }
 
@@ -3217,6 +3223,7 @@ public class Main extends Game {
         metaPrefs.putInteger("souls", souls);
         for (int i = 0; i < upLevels.length; i++) metaPrefs.putInteger("up" + i, upLevels[i]);
         metaPrefs.putInteger("pactSlots", pactSlots);
+        metaPrefs.putInteger("augmentBadges", augmentBadges);
         for (int i = 0; i < PACT_COUNT; i++) metaPrefs.putBoolean("pact" + i, pactOn[i]);
         metaPrefs.flush();
     }
@@ -3243,6 +3250,19 @@ public class Main extends Game {
         if (containsWithPadding(backButton, x, y, 20f)) {
             clickSound.play();
             upgradesVisible = false;
+            return;
+        }
+        if (containsWithPadding(badgeShopButton, x, y, 20f)) {
+            if (souls < AUGMENT_BADGE_COST) {
+                playSfx(errorSound);
+                message("Need " + AUGMENT_BADGE_COST + " souls for an Augment Badge.", 1.5f);
+            } else {
+                souls -= AUGMENT_BADGE_COST;
+                augmentBadges++;
+                saveMeta();
+                playSfx(buySound);
+                message("Bought an Augment Badge! Badges: " + augmentBadges, 1.5f);
+            }
             return;
         }
         if (containsWithPadding(pactsButton, x, y, 20f)) {
@@ -3302,9 +3322,13 @@ public class Main extends Game {
         font.draw(batch, "Spend souls to improve your next run.", 40f, h - 145f);
         batch.setColor(Color.WHITE);
         batch.draw(menuButtonTexture, pactsButton.x, pactsButton.y, pactsButton.width, pactsButton.height);
+        batch.draw(menuButtonTexture, badgeShopButton.x, badgeShopButton.y, badgeShopButton.width, badgeShopButton.height);
         font.setColor(Color.WHITE);
         font.getData().setScale(.8f);
         font.draw(batch, "PACTS", pactsButton.x + 52f, pactsButton.y + 35f);
+        font.getData().setScale(.62f);
+        font.draw(batch, "BADGE  " + AUGMENT_BADGE_COST + " SOULS", badgeShopButton.x + 8f, badgeShopButton.y + 35f);
+        font.getData().setScale(.8f);
         for (int i = 0; i < upgradeRows.length; i++) {
             Rectangle r = upgradeRows[i];
             boolean maxed = upLevels[i] >= UP_MAX[i];
@@ -3962,6 +3986,8 @@ public class Main extends Game {
         backButton.set(25f, 25f, 150f, 55f);
         returnMenuButton.set(w - 210f, 25f, 185f, 58f);
         pactsButton.set(w - 210f, 25f, 185f, 58f);
+        badgeShopButton.set(w - 410f, 25f, 185f, 58f);
+        badgeUseButton.set(w - 365f, h - 72f, 175f, 48f);
         upgradesButton.set(w - 210f, menuVisible ? 25f : 95f, 185f, 58f);
         tutorialButton.set(25f, 25f, 185f, 58f);
         tutNext.set(w - 195f, 25f, 170f, 55f);
