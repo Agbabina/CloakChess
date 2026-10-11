@@ -179,6 +179,7 @@ public class Card {
     private boolean hasAegis;       // +1 DEF on play
     private boolean hasVenom;       // poison nearest enemy on play
     private boolean hasEcho;        // 35% chance not to spend a use
+    private final java.util.EnumSet<AugmentType> augments = java.util.EnumSet.noneOf(AugmentType.class);
 
     // =========================================================
     // CONSTRUCTORS
@@ -449,6 +450,7 @@ public class Card {
         if (augment == null) {
             return;
         }
+        augments.add(augment.getType());
 
         switch (augment.getType().name()) {
 
@@ -557,6 +559,10 @@ public class Card {
         return hasEcho;
     }
 
+    public boolean hasAugment(AugmentType type) {
+        return type != null && augments.contains(type);
+    }
+
     public void consumeBurn() {
         hasBurn = false;
     }
@@ -573,7 +579,8 @@ public class Card {
             || hasGilded
             || hasAegis
             || hasVenom
-            || hasEcho;
+            || hasEcho
+            || !augments.isEmpty();
     }
 
     // ---- Save / load for the new augments (comma separated, e.g. "FURY,ECHO") ----
@@ -587,12 +594,33 @@ public class Card {
         if (hasAegis) sb.append("AEGIS,");
         if (hasVenom) sb.append("VENOM,");
         if (hasEcho) sb.append("ECHO,");
+        for (AugmentType type : augments) {
+            if (type != AugmentType.FURY && type != AugmentType.MANA_SURGE
+                && type != AugmentType.VAMPIRIC && type != AugmentType.GILDED
+                && type != AugmentType.AEGIS && type != AugmentType.VENOM
+                && type != AugmentType.ECHO) sb.append(type.name()).append(",");
+        }
         return sb.toString();
     }
 
     public void restoreExtraAugments(String code) {
         if (code == null || code.isEmpty()) return;
         for (String part : code.split(",")) {
+            try {
+                AugmentType type = AugmentType.valueOf(part.trim());
+                augments.add(type);
+                switch (type) {
+                    case FURY: hasFury = true; break;
+                    case MANA_SURGE: hasManaSurge = true; break;
+                    case VAMPIRIC: hasVampiric = true; break;
+                    case GILDED: hasGilded = true; break;
+                    case AEGIS: hasAegis = true; break;
+                    case VENOM: hasVenom = true; break;
+                    case ECHO: hasEcho = true; break;
+                    default: break;
+                }
+            } catch (IllegalArgumentException ignored) {
+            }
             switch (part.trim()) {
                 case "FURY": hasFury = true; break;
                 case "MANA_SURGE": hasManaSurge = true; break;

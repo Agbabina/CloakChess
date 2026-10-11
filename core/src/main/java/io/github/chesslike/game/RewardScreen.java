@@ -1022,6 +1022,17 @@ public class RewardScreen {
             )
         );
 
+        pool.add(new Augment(AugmentType.CHAIN_LIGHTNING, "CHAIN LIGHTNING", "Captures zap up to two nearby enemies for 1 damage.", 2));
+        pool.add(new Augment(AugmentType.EXECUTIONER, "EXECUTIONER", "Deal +1 damage to enemies at half health or lower.", 1));
+        pool.add(new Augment(AugmentType.FROSTBITE, "FROSTBITE", "Captures freeze a nearby enemy for one enemy turn.", 1));
+        pool.add(new Augment(AugmentType.SOUL_EATER, "SOUL EATER", "Gain +1 bonus soul whenever this card captures.", 1));
+        pool.add(new Augment(AugmentType.OVERCHARGE, "OVERCHARGE", "Captures restore +1 mana.", 1));
+        pool.add(new Augment(AugmentType.TREASURE_HUNTER, "TREASURE HUNTER", "Captures grant +12 gold.", 12));
+        pool.add(new Augment(AugmentType.BLOODLUST, "BLOODLUST", "Captures heal 1 HP.", 1));
+        pool.add(new Augment(AugmentType.MIRROR, "MIRROR", "25% chance to use the card without spending a use.", 25));
+        pool.add(new Augment(AugmentType.BOMBER, "BOMBER", "Captures blast nearby enemies for 1 damage.", 1));
+        pool.add(new Augment(AugmentType.LUCKY_STRIKE, "LUCKY STRIKE", "20% chance to deal +2 capture damage.", 2));
+
         return pool;
     }
 

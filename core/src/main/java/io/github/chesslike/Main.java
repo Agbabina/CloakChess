@@ -149,6 +149,11 @@ public class Main extends Game {
     private final Rectangle pactSlotButton = new Rectangle();
     private final Rectangle pactsButton = new Rectangle();
     private final Rectangle upgradesButton = new Rectangle();
+    private final Rectangle badgeShopButton = new Rectangle();
+    private final Rectangle badgeUseButton = new Rectangle();
+    private int augmentBadges = 0;
+    private boolean usingAugmentBadge = false;
+    private static final int AUGMENT_BADGE_COST = 8;
     private final Rectangle menuPanel = new Rectangle();
     private final String[] evtOptions = new String[3];
     private final boolean[] evtEnabled = new boolean[3];
@@ -3210,6 +3215,7 @@ public class Main extends Game {
         souls = metaPrefs.getInteger("souls", 0);
         for (int i = 0; i < upLevels.length; i++) upLevels[i] = metaPrefs.getInteger("up" + i, 0);
         pactSlots = MathUtils.clamp(metaPrefs.getInteger("pactSlots", 1), 1, 3);
+        augmentBadges = Math.max(0, metaPrefs.getInteger("augmentBadges", 0));
         for (int i = 0; i < PACT_COUNT; i++) pactOn[i] = metaPrefs.getBoolean("pact" + i, false);
     }
 
@@ -3217,6 +3223,7 @@ public class Main extends Game {
         metaPrefs.putInteger("souls", souls);
         for (int i = 0; i < upLevels.length; i++) metaPrefs.putInteger("up" + i, upLevels[i]);
         metaPrefs.putInteger("pactSlots", pactSlots);
+        metaPrefs.putInteger("augmentBadges", augmentBadges);
         for (int i = 0; i < PACT_COUNT; i++) metaPrefs.putBoolean("pact" + i, pactOn[i]);
         metaPrefs.flush();
     }
@@ -3243,6 +3250,19 @@ public class Main extends Game {
         if (containsWithPadding(backButton, x, y, 20f)) {
             clickSound.play();
             upgradesVisible = false;
+            return;
+        }
+        if (containsWithPadding(badgeShopButton, x, y, 20f)) {
+            if (souls < AUGMENT_BADGE_COST) {
+                playSfx(errorSound);
+                message("Need " + AUGMENT_BADGE_COST + " souls for an Augment Badge.", 1.5f);
+            } else {
+                souls -= AUGMENT_BADGE_COST;
+                augmentBadges++;
+                saveMeta();
+                playSfx(buySound);
+                message("Bought an Augment Badge! Badges: " + augmentBadges, 1.5f);
+            }
             return;
         }
         if (containsWithPadding(pactsButton, x, y, 20f)) {
@@ -3302,9 +3322,13 @@ public class Main extends Game {
         font.draw(batch, "Spend souls to improve your next run.", 40f, h - 145f);
         batch.setColor(Color.WHITE);
         batch.draw(menuButtonTexture, pactsButton.x, pactsButton.y, pactsButton.width, pactsButton.height);
+        batch.draw(menuButtonTexture, badgeShopButton.x, badgeShopButton.y, badgeShopButton.width, badgeShopButton.height);
         font.setColor(Color.WHITE);
         font.getData().setScale(.8f);
         font.draw(batch, "PACTS", pactsButton.x + 52f, pactsButton.y + 35f);
+        font.getData().setScale(.62f);
+        font.draw(batch, "BADGE  " + AUGMENT_BADGE_COST + " SOULS", badgeShopButton.x + 8f, badgeShopButton.y + 35f);
+        font.getData().setScale(.8f);
         for (int i = 0; i < upgradeRows.length; i++) {
             Rectangle r = upgradeRows[i];
             boolean maxed = upLevels[i] >= UP_MAX[i];
@@ -3324,6 +3348,69 @@ public class Main extends Game {
         font.draw(batch, "BACK", backButton.x + 38f, backButton.y + 35f);
         font.getData().setScale(1f);
         batch.end();
+    }
+
+    private void layoutAugmentBadgeButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        badgeUseButton.set(w - 365f, h - 72f, 175f, 48f);
+    }
+
+    private void renderAugmentBadgeButton() {
+        if (blitzMode || menuVisible || gameOverScreen.isVisible()) return;
+        layoutAugmentBadgeButton();
+        batch.begin();
+        batch.setColor(usingAugmentBadge ? new Color(.35f, .72f, .35f, 1f) : Color.WHITE);
+        batch.draw(menuButtonTexture, badgeUseButton.x, badgeUseButton.y, badgeUseButton.width, badgeUseButton.height);
+        batch.setColor(Color.WHITE);
+        font.getData().setScale(.55f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, (usingAugmentBadge ? "CHOOSE CARD" : "BADGES " + augmentBadges),
+            badgeUseButton.x + 14f, badgeUseButton.y + 29f);
+        font.getData().setScale(1f);
+        batch.end();
+    }
+
+    private Augment createRandomBadgeAugment() {
+        AugmentType[] types = {
+            AugmentType.EXTRA_USES, AugmentType.BURN, AugmentType.REBOUND,
+            AugmentType.PIERCE, AugmentType.DOUBLE_MOVE, AugmentType.TELEPORTATION_INFUSION,
+            AugmentType.FURY, AugmentType.MANA_SURGE, AugmentType.VAMPIRIC, AugmentType.GILDED,
+            AugmentType.AEGIS, AugmentType.VENOM, AugmentType.ECHO,
+            AugmentType.CHAIN_LIGHTNING, AugmentType.EXECUTIONER, AugmentType.FROSTBITE,
+            AugmentType.SOUL_EATER, AugmentType.OVERCHARGE, AugmentType.TREASURE_HUNTER,
+            AugmentType.BLOODLUST, AugmentType.MIRROR, AugmentType.BOMBER, AugmentType.LUCKY_STRIKE
+        };
+        AugmentType type = types[random.nextInt(types.length)];
+        String name = type.name().replace('_', ' ');
+        String description;
+        int value = 1;
+        switch (type) {
+            case EXTRA_USES: description = "This card gets one extra use."; break;
+            case BURN: description = "Burn another enemy when played."; break;
+            case REBOUND: description = "Capture and continue moving."; break;
+            case PIERCE: description = "Damage an enemy in the movement line."; break;
+            case DOUBLE_MOVE: description = "This card can trigger another move."; break;
+            case TELEPORTATION_INFUSION: description = "Teleport to any square when used."; break;
+            case FURY: description = "Captures deal +1 damage."; break;
+            case MANA_SURGE: description = "Playing this card restores extra mana."; value = 2; break;
+            case VAMPIRIC: description = "Captures heal 1 HP."; break;
+            case GILDED: description = "Captures grant gold."; value = 8; break;
+            case AEGIS: description = "Playing this card grants defense."; break;
+            case VENOM: description = "Poison the nearest enemy."; break;
+            case ECHO: description = "Chance to keep a use."; value = 35; break;
+            case CHAIN_LIGHTNING: description = "Captures zap up to two nearby enemies."; value = 2; break;
+            case EXECUTIONER: description = "Deal extra damage to weakened enemies."; break;
+            case FROSTBITE: description = "Freeze a nearby enemy."; break;
+            case SOUL_EATER: description = "Gain a bonus soul on capture."; break;
+            case OVERCHARGE: description = "Captures restore mana."; break;
+            case TREASURE_HUNTER: description = "Captures grant extra gold."; value = 12; break;
+            case BLOODLUST: description = "Captures heal 1 HP."; break;
+            case MIRROR: description = "Chance to play without spending a use."; value = 25; break;
+            case BOMBER: description = "Captures blast nearby enemies."; break;
+            case LUCKY_STRIKE: description = "Chance to deal bonus capture damage."; value = 2; break;
+            default: description = "A mysterious card upgrade."; break;
+        }
+        return new Augment(type, name, description, value);
     }
 
     private void renderUpgradesButton() {
@@ -3962,6 +4049,8 @@ public class Main extends Game {
         backButton.set(25f, 25f, 150f, 55f);
         returnMenuButton.set(w - 210f, 25f, 185f, 58f);
         pactsButton.set(w - 210f, 25f, 185f, 58f);
+        badgeShopButton.set(w - 410f, 25f, 185f, 58f);
+        badgeUseButton.set(w - 365f, h - 72f, 175f, 48f);
         upgradesButton.set(w - 210f, menuVisible ? 25f : 95f, 185f, 58f);
         tutorialButton.set(25f, 25f, 185f, 58f);
         tutNext.set(w - 195f, 25f, 170f, 55f);
@@ -4725,8 +4814,22 @@ public class Main extends Game {
             return;
         }
 
+        layoutAugmentBadgeButton();
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
+            if (badgeUseButton.contains(ux, uy)) {
+                if (augmentBadges <= 0) {
+                    playSfx(errorSound);
+                    message("No Augment Badges. Buy one in the Soul Shop.", 1.8f);
+                } else {
+                    usingAugmentBadge = !usingAugmentBadge;
+                    activeCard = null;
+                    player.setSelected(false);
+                    message(usingAugmentBadge ? "BADGE READY: tap a card to augment it." : "Badge cancelled.", 1.8f);
+                }
+                clickSound.play();
+                return;
+            }
             if (ux >= Gdx.graphics.getWidth() - 180f && uy >= Gdx.graphics.getHeight() - 70f) {
                 enemyDeckVisible = true;
                 clickSound.play();
@@ -4797,6 +4900,17 @@ public class Main extends Game {
                 Card c = hand.get(i);
                 if (c.isClicked(touchX, touchY)) {
                     clickSound.play();
+                    if (usingAugmentBadge) {
+                        Augment badgeAugment = createRandomBadgeAugment();
+                        c.applyAugment(badgeAugment);
+                        augmentBadges = Math.max(0, augmentBadges - 1);
+                        usingAugmentBadge = false;
+                        saveMeta();
+                        saveGameState();
+                        augmentSound.play();
+                        message(c.getName() + " instantly gained " + badgeAugment.getName() + "!", 2.2f);
+                        return;
+                    }
                     activeCard = c;
                     c.setSelected(true);
                     message(c.getName() + " selected", 1.5f);
@@ -5026,8 +5140,10 @@ public class Main extends Game {
         if (blitzMode && blitzManager != null) blitzManager.cardPlayed();
         CardModifier modifier = cardModifiers.get(card);
         boolean echo = card.hasEcho() && random.nextFloat() < 0.35f;
-        boolean free = (modifier == CardModifier.FRUGAL && random.nextBoolean()) || echo;
+        boolean mirror = card.hasAugment(AugmentType.MIRROR) && random.nextFloat() < 0.25f;
+        boolean free = (modifier == CardModifier.FRUGAL && random.nextBoolean()) || echo || mirror;
         if (echo) spawnFloat("ECHO", tileCenterX(player.getX()), tileCenterY(player.getY()) + 40f, .9f, .9f, .9f);
+        if (mirror) spawnFloat("MIRROR!", tileCenterX(player.getX()), tileCenterY(player.getY()) + 58f, .6f, .8f, 1f);
         if (modifier == CardModifier.BLOODPRICE) {
             if (!damagePlayer(1)) {
                 message("Bloodprice took 1 HP", 1.5f);
@@ -5049,6 +5165,17 @@ public class Main extends Game {
         if (modifier == CardModifier.LEECH && captured) healPlayer(1);
         if (card.hasAegis()) gainDefense(1);
         if (card.hasVenom()) applyVenom();
+        if (card.hasAugment(AugmentType.FROSTBITE)) {
+            Enemy nearest = nearestLivingEnemy();
+            if (nearest != null) {
+                stunnedTurns.put(nearest, Math.max(1, stunnedTurns.get(nearest, 0)));
+                spawnFloat("FROSTBITE", tileCenterX(nearest.getX()), tileCenterY(nearest.getY()) + 36f, .35f, .8f, 1f);
+            }
+        }
+        if (card.hasAugment(AugmentType.OVERCHARGE)) {
+            mana = Math.min(getMaxMana(), mana + 1);
+            spawnFloat("+1 OVERCHARGE", tileCenterX(player.getX()), tileCenterY(player.getY()) + 64f, .4f, .7f, 1f);
+        }
         int surge = card.hasManaSurge() ? 2 : 0;
         if (surge > 0) spawnFloat("+2 MP", tileCenterX(player.getX()), tileCenterY(player.getY()) + 48f, .4f, .65f, 1f);
         if (card.isUsed()) hand.removeValue(card, true);
@@ -5258,6 +5385,16 @@ public class Main extends Game {
                     spawnFloat("FURY +1", tileCenterX(player.getX()), tileCenterY(player.getY()) + 62f, 1f, .3f, .3f);
                 }
 
+                if (cc != null && cc.hasAugment(AugmentType.EXECUTIONER)
+                    && target.getHealth() <= Math.max(1, target.getMaxHealth() / 2)) {
+                    captureDamage++;
+                    spawnFloat("EXECUTIONER +1", tileCenterX(target.getX()), tileCenterY(target.getY()) + 46f, 1f, .25f, .2f);
+                }
+                boolean luckyStrike = cc != null && cc.hasAugment(AugmentType.LUCKY_STRIKE) && random.nextFloat() < .20f;
+                if (luckyStrike) {
+                    captureDamage += 2;
+                    spawnFloat("LUCKY STRIKE!", tileCenterX(target.getX()), tileCenterY(target.getY()) + 60f, 1f, .8f, .2f);
+                }
                 damageEnemy(target, captureDamage);
 
                 if (captureDamage >= 2) {
@@ -5292,11 +5429,22 @@ public class Main extends Game {
                     gold += 8;
                     spawnFloat("+8g", tileCenterX(player.getX()), tileCenterY(player.getY()) + 80f, 1f, .85f, .25f);
                 }
+                if (cc.hasAugment(AugmentType.BLOODLUST)) healPlayer(1);
+                if (cc.hasAugment(AugmentType.TREASURE_HUNTER)) {
+                    gold += 12;
+                    spawnFloat("+12 TREASURE", tileCenterX(player.getX()), tileCenterY(player.getY()) + 96f, 1f, .82f, .2f);
+                }
+                if (cc.hasAugment(AugmentType.SOUL_EATER)) {
+                    runBonusSouls++;
+                    spawnFloat("+1 SOUL", tileCenterX(player.getX()), tileCenterY(player.getY()) + 112f, .7f, .5f, 1f);
+                }
+                if (cc.hasAugment(AugmentType.OVERCHARGE)) mana = Math.min(getMaxMana(), mana + 1);
             }
 
             spawnSlash(player.getX(), player.getY());
             registerCapture(target, cc, curse, invisibleTurns > 0, captureHealthPercent);
             triggerCardEvolution(cc, target);
+            triggerNewAugmentChain(cc, target);
             refillHandIfNeeded();
 
             groundPound(player.getX(), player.getY());
@@ -5382,6 +5530,57 @@ public class Main extends Game {
             spawnFloat("ECHO CHAIN +1MP", tileCenterX(player.getX()),
                 tileCenterY(player.getY()) + 104f, .55f, .8f, 1f);
             showPopup("ECHO CHAIN!", .55f, .8f, 1f, .95f);
+        }
+    }
+
+    private Enemy nearestLivingEnemy() {
+        Enemy nearest = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if (e == null || !e.isAlive() || e.isFalling()) continue;
+            int d = Math.abs(e.getX() - player.getX()) + Math.abs(e.getY() - player.getY());
+            if (d < bestDistance) { bestDistance = d; nearest = e; }
+        }
+        return nearest;
+    }
+
+    /** New augment effects are deliberately one-way: chain damage never triggers another chain. */
+    private void triggerNewAugmentChain(Card card, Enemy anchor) {
+        if (card == null || anchor == null) return;
+        int ax = anchor.getX(), ay = anchor.getY();
+
+        if (card.hasAugment(AugmentType.CHAIN_LIGHTNING)) {
+            int hits = 0;
+            for (int i = 0; i < enemies.size && hits < 2; i++) {
+                Enemy e = enemies.get(i);
+                if (e == anchor || !e.isAlive() || e.isFalling()) continue;
+                int d = Math.max(Math.abs(e.getX() - ax), Math.abs(e.getY() - ay));
+                if (d <= 2) {
+                    hits++;
+                    damageEnemy(e, 1, .4f, .75f, 1f);
+                    spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 8, .3f, .7f, 1f, 28f);
+                }
+            }
+            if (hits > 0) showPopup("CHAIN LIGHTNING x" + hits, .4f, .75f, 1f, .95f);
+        }
+
+        if (card.hasAugment(AugmentType.BOMBER)) {
+            int hits = 0;
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy e = enemies.get(i);
+                if (e == anchor || !e.isAlive() || e.isFalling()) continue;
+                int d = Math.max(Math.abs(e.getX() - ax), Math.abs(e.getY() - ay));
+                if (d <= 1) {
+                    hits++;
+                    damageEnemy(e, 1, 1f, .45f, .12f);
+                }
+            }
+            if (hits > 0) {
+                spawnShockwave(ax, ay, 1.5f);
+                showPopup("BOMBER! " + hits + " BLAST HITS", 1f, .45f, .12f, .95f);
+                startShake(.1f, 3f);
+            }
         }
     }
 
@@ -6685,6 +6884,7 @@ public class Main extends Game {
         font.setColor(Color.WHITE);
         batch.end();
         renderHud();
+        renderAugmentBadgeButton();
         renderCorruptionHud();
         renderShockwaves();
         renderDebris();

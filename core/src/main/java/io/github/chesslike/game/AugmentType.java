@@ -12,6 +12,16 @@ public enum AugmentType {
     AEGIS,
     VENOM,
     ECHO,
+    CHAIN_LIGHTNING,
+    EXECUTIONER,
+    FROSTBITE,
+    SOUL_EATER,
+    OVERCHARGE,
+    TREASURE_HUNTER,
+    BLOODLUST,
+    MIRROR,
+    BOMBER,
+    LUCKY_STRIKE,
 
     // After using this card, another enemy piece is burned.
     BURN,
