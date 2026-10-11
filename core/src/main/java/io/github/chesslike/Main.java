@@ -1536,7 +1536,7 @@ public class Main extends Game {
 
         // Fanned physical hand: overlapping cards follow a shallow arc, with
         // the middle cards lifted toward the focal point. Keep the hand centered.
-        float step = cw * (hand.size >= 5 ? 0.48f : 0.54f);
+        float step = cw * (hand.size >= 5 ? 0.64f : 0.68f);
         float total = cw + Math.max(0, hand.size - 1) * step;
         float startX = Math.max(4f, (w - total) / 2f);
         float baseY = Math.max(2f, Math.min(12f, h * 0.018f));
