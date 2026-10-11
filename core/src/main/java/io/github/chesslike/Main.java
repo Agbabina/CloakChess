@@ -3350,6 +3350,69 @@ public class Main extends Game {
         batch.end();
     }
 
+    private void layoutAugmentBadgeButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        badgeUseButton.set(w - 365f, h - 72f, 175f, 48f);
+    }
+
+    private void renderAugmentBadgeButton() {
+        if (blitzMode || menuVisible || gameOverScreen.isVisible()) return;
+        layoutAugmentBadgeButton();
+        batch.begin();
+        batch.setColor(usingAugmentBadge ? new Color(.35f, .72f, .35f, 1f) : Color.WHITE);
+        batch.draw(menuButtonTexture, badgeUseButton.x, badgeUseButton.y, badgeUseButton.width, badgeUseButton.height);
+        batch.setColor(Color.WHITE);
+        font.getData().setScale(.55f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, (usingAugmentBadge ? "CHOOSE CARD" : "BADGES " + augmentBadges),
+            badgeUseButton.x + 14f, badgeUseButton.y + 29f);
+        font.getData().setScale(1f);
+        batch.end();
+    }
+
+    private Augment createRandomBadgeAugment() {
+        AugmentType[] types = {
+            AugmentType.EXTRA_USES, AugmentType.BURN, AugmentType.REBOUND,
+            AugmentType.PIERCE, AugmentType.DOUBLE_MOVE, AugmentType.TELEPORTATION_INFUSION,
+            AugmentType.FURY, AugmentType.MANA_SURGE, AugmentType.VAMPIRIC, AugmentType.GILDED,
+            AugmentType.AEGIS, AugmentType.VENOM, AugmentType.ECHO,
+            AugmentType.CHAIN_LIGHTNING, AugmentType.EXECUTIONER, AugmentType.FROSTBITE,
+            AugmentType.SOUL_EATER, AugmentType.OVERCHARGE, AugmentType.TREASURE_HUNTER,
+            AugmentType.BLOODLUST, AugmentType.MIRROR, AugmentType.BOMBER, AugmentType.LUCKY_STRIKE
+        };
+        AugmentType type = types[random.nextInt(types.length)];
+        String name = type.name().replace('_', ' ');
+        String description;
+        int value = 1;
+        switch (type) {
+            case EXTRA_USES: description = "This card gets one extra use."; break;
+            case BURN: description = "Burn another enemy when played."; break;
+            case REBOUND: description = "Capture and continue moving."; break;
+            case PIERCE: description = "Damage an enemy in the movement line."; break;
+            case DOUBLE_MOVE: description = "This card can trigger another move."; break;
+            case TELEPORTATION_INFUSION: description = "Teleport to any square when used."; break;
+            case FURY: description = "Captures deal +1 damage."; break;
+            case MANA_SURGE: description = "Playing this card restores extra mana."; value = 2; break;
+            case VAMPIRIC: description = "Captures heal 1 HP."; break;
+            case GILDED: description = "Captures grant gold."; value = 8; break;
+            case AEGIS: description = "Playing this card grants defense."; break;
+            case VENOM: description = "Poison the nearest enemy."; break;
+            case ECHO: description = "Chance to keep a use."; value = 35; break;
+            case CHAIN_LIGHTNING: description = "Captures zap up to two nearby enemies."; value = 2; break;
+            case EXECUTIONER: description = "Deal extra damage to weakened enemies."; break;
+            case FROSTBITE: description = "Freeze a nearby enemy."; break;
+            case SOUL_EATER: description = "Gain a bonus soul on capture."; break;
+            case OVERCHARGE: description = "Captures restore mana."; break;
+            case TREASURE_HUNTER: description = "Captures grant extra gold."; value = 12; break;
+            case BLOODLUST: description = "Captures heal 1 HP."; break;
+            case MIRROR: description = "Chance to play without spending a use."; value = 25; break;
+            case BOMBER: description = "Captures blast nearby enemies."; break;
+            case LUCKY_STRIKE: description = "Chance to deal bonus capture damage."; value = 2; break;
+            default: description = "A mysterious card upgrade."; break;
+        }
+        return new Augment(type, name, description, value);
+    }
+
     private void renderUpgradesButton() {
         layoutMenuButtons();
         batch.begin();
@@ -4751,8 +4814,22 @@ public class Main extends Game {
             return;
         }
 
+        layoutAugmentBadgeButton();
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
+            if (badgeUseButton.contains(ux, uy)) {
+                if (augmentBadges <= 0) {
+                    playSfx(errorSound);
+                    message("No Augment Badges. Buy one in the Soul Shop.", 1.8f);
+                } else {
+                    usingAugmentBadge = !usingAugmentBadge;
+                    activeCard = null;
+                    player.setSelected(false);
+                    message(usingAugmentBadge ? "BADGE READY: tap a card to augment it." : "Badge cancelled.", 1.8f);
+                }
+                clickSound.play();
+                return;
+            }
             if (ux >= Gdx.graphics.getWidth() - 180f && uy >= Gdx.graphics.getHeight() - 70f) {
                 enemyDeckVisible = true;
                 clickSound.play();
@@ -4823,6 +4900,17 @@ public class Main extends Game {
                 Card c = hand.get(i);
                 if (c.isClicked(touchX, touchY)) {
                     clickSound.play();
+                    if (usingAugmentBadge) {
+                        Augment badgeAugment = createRandomBadgeAugment();
+                        c.applyAugment(badgeAugment);
+                        augmentBadges = Math.max(0, augmentBadges - 1);
+                        usingAugmentBadge = false;
+                        saveMeta();
+                        saveGameState();
+                        augmentSound.play();
+                        message(c.getName() + " instantly gained " + badgeAugment.getName() + "!", 2.2f);
+                        return;
+                    }
                     activeCard = c;
                     c.setSelected(true);
                     message(c.getName() + " selected", 1.5f);
@@ -6711,6 +6799,7 @@ public class Main extends Game {
         font.setColor(Color.WHITE);
         batch.end();
         renderHud();
+        renderAugmentBadgeButton();
         renderCorruptionHud();
         renderShockwaves();
         renderDebris();
