@@ -443,6 +443,7 @@ public class Main extends Game {
 
     private Array<Card> hand;
     private Card activeCard;
+    private int kingCardCycleIndex = -1;
     private static final int MAX_HAND_SIZE = 5;
     private final Random random = new Random();
     private final Array<Debris> debris = new Array<>();
@@ -4946,15 +4947,8 @@ public class Main extends Game {
             // can browse cards without reaching for the side fan.
             if (player.isClicked(touchX, touchY) && hand.size > 0) {
                 clickSound.play();
-                int next = 0;
-                if (activeCard != null) {
-                    int current = hand.indexOf(activeCard, true);
-                    next = current < 0 ? 0 : (current + 1) % hand.size;
-                    activeCard.setSelected(false);
-                } else {
-                    next = 0;
-                }
-                activeCard = hand.get(next);
+                kingCardCycleIndex = (kingCardCycleIndex + 1) % hand.size;
+                activeCard = hand.get(kingCardCycleIndex);
                 activeCard.setSelected(true);
                 player.setSelected(false);
                 message(activeCard.getName() + " selected", 1.5f);
