@@ -50,7 +50,10 @@ public class Board {
     public void render() {
         batch.begin();
         boardX = (Gdx.graphics.getWidth() - SIZE * TILE_SIZE) / 2f;
-        boardY = (Gdx.graphics.getHeight() - SIZE * TILE_SIZE) / 2f;
+        float screenH = Gdx.graphics.getHeight();
+        float boardH = SIZE * TILE_SIZE;
+        // Bias the board upward so the physical card hand has its own strip below it.
+        boardY = Math.max((screenH - boardH) / 2f, Math.min(168f, screenH - boardH));
 
         for (int y = 0; y < SIZE; y++) {
             for (int x = 0; x < SIZE; x++) {
