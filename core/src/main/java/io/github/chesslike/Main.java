@@ -5401,37 +5401,53 @@ public class Main extends Game {
     }
 
     private void applyEnemyArchetypeAttack(Enemy e) {
-        if ((enemyTurnCounter & 1) != 0) return; // Special attacks have a one-turn warning window.
+        boolean attackNow = (enemyTurnCounter & 1) == 0;
         int dx = Math.abs(e.getX() - player.getX());
         int dy = Math.abs(e.getY() - player.getY());
         if (e.getVariant() == EnemyVariant.BOSS) {
             int bossNumber = FloorProgression.bossNumberForRoom(difficulty);
             boolean inRange;
+            String attackName;
             if (bossNumber <= 1) {
                 inRange = Math.max(dx, dy) == 1;
-                if (inRange) message("Hollow King: ROYAL CLEAVE!", 1.3f);
+                attackName = "ROYAL CLEAVE";
             } else if (bossNumber == 2) {
                 inRange = (dx == 0 || dy == 0) && dx + dy <= 2 && dx + dy > 0;
-                if (inRange) message("Hollow King: RUNE BLAST!", 1.3f);
+                attackName = "RUNE BLAST";
             } else {
                 inRange = Math.max(dx, dy) <= 2 && Math.max(dx, dy) > 0;
-                if (inRange) message("Hollow King: SHATTERING PULSE!", 1.3f);
+                attackName = "SHATTERING PULSE";
             }
             if (inRange) {
-                damagePlayer(1);
-                if (bossNumber >= 3) crippleRandomCard();
-                spawnShockwave(e.getX(), e.getY(), bossNumber >= 3 ? 1.8f : 1.2f);
+                if (!attackNow) {
+                    message("Hollow King is charging " + attackName + "! Move!", 1.5f);
+                    spawnFloat("DANGER", tileCenterX(e.getX()), tileCenterY(e.getY()) + 48f, 1f, .25f, .3f);
+                } else {
+                    message("Hollow King: " + attackName + "!", 1.2f);
+                    damagePlayer(1);
+                    if (bossNumber >= 3) crippleRandomCard();
+                    spawnShockwave(e.getX(), e.getY(), bossNumber >= 3 ? 1.8f : 1.2f);
+                }
             }
             return;
         }
         if (e.getVariant() == EnemyVariant.PYROMANCER && dx == dy && dx > 0 && dx <= 2) {
-            spawnFloat("EMBER", tileCenterX(e.getX()), tileCenterY(e.getY()) + 34f, 1f, .38f, .12f);
-            message("Pyromancer: diagonal flame! Move off its line.", 1.4f);
-            damagePlayer(1);
+            if (!attackNow) {
+                message("Pyromancer is lining up a diagonal flame!", 1.5f);
+                spawnFloat("FIRE LINE", tileCenterX(e.getX()), tileCenterY(e.getY()) + 34f, 1f, .38f, .12f);
+            } else {
+                message("Pyromancer: flame burst!", 1.2f);
+                damagePlayer(1);
+            }
         } else if (e.getVariant() == EnemyVariant.CRYOMANCER && ((dx == 0 && dy > 0 && dy <= 2) || (dy == 0 && dx > 0 && dx <= 2))) {
-            message("Cryomancer: frost locks a card!", 1.4f);
-            crippleRandomCard();
-        } else if (e.getVariant() == EnemyVariant.MENDER) {
+            if (!attackNow) {
+                message("Cryomancer is aiming frost along your row/column!", 1.5f);
+                spawnFloat("FROST LINE", tileCenterX(e.getX()), tileCenterY(e.getY()) + 34f, .35f, .8f, 1f);
+            } else {
+                message("Cryomancer: frost locks a card!", 1.2f);
+                crippleRandomCard();
+            }
+        } else if (e.getVariant() == EnemyVariant.MENDER && attackNow) {
             Enemy weakest = null;
             for (int i = 0; i < enemies.size; i++) {
                 Enemy ally = enemies.get(i);
