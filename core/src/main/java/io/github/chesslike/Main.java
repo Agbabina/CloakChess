@@ -87,9 +87,9 @@ public class Main extends Game {
     // ---------- Meta progression (Souls) ----------
     private static final int SOULS_PER_ROOM = 5;
     private static final String[] UP_NAMES = {"Vitality", "Wealth", "Arcana", "Dark Pact", "Soul Harvest"};
-    private static final String[] UP_DESC = {"+1 starting max HP", "+25 starting gold", "+1 max mana", "Sacrifice heals 1 HP per level", "+15% souls earned per level"};
-    private static final int[] UP_MAX = {3, 3, 2, 2, 3};
-    private static final int[] UP_BASE_COST = {10, 8, 15, 20, 12};
+    private static final String[] UP_DESC = {"+1 starting max HP (up to +5)", "+50 starting gold per level", "+1 max mana per level (up to +4)", "Sacrifice heals 2 HP per level", "+25% souls earned per level"};
+    private static final int[] UP_MAX = {5, 5, 4, 5, 5};
+    private static final int[] UP_BASE_COST = {6, 5, 8, 8, 5};
     private static final float CARD_REWARD_CHANCE = 0.40f;
     // Poison: stacks up to this many turns; 6+ turns = 2 damage per tick
     private static final int POISON_MAX_TURNS = 8;
@@ -768,7 +768,7 @@ public class Main extends Game {
         playerMaxHp = Math.max(1, 3 + upLevels[0] - (runPact[0] ? 1 : 0));
         playerHp = playerMaxHp;
         defense = 0;
-        gold = 25 * upLevels[1];
+        gold = 50 * upLevels[1];
         flawlessStreak = 0;
         runBonusSouls = 0;
         bounceArrows = 0;
@@ -1522,28 +1522,18 @@ public class Main extends Game {
     private void positionCards() {
         if (hand == null || hand.size == 0) return;
         float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
-        if (w >= h) {
-            float spacing = 10f;
-            float required = hand.size * 155f + (hand.size - 1) * spacing;
-            float scale = MathUtils.clamp(h - 40f < required ? (h - 40f) / required : 1f, 0.50f, 0.82f);
-            float cw = 115f * scale, ch = 155f * scale, gap = spacing * scale;
-            float startY = (h - (hand.size * ch + (hand.size - 1) * gap)) / 2f;
-            for (int i = 0; i < hand.size; i++) {
-                Card c = hand.get(i);
-                c.setLayoutScale(scale);
-                c.setPosition(w - cw - 20f, startY + i * (ch + gap));
-            }
-        } else {
-            float spacing = 6f;
-            float required = hand.size * 115f + (hand.size - 1) * spacing;
-            float scale = MathUtils.clamp(w - 20f < required ? (w - 20f) / required : 1f, 0.42f, 0.75f);
-            float cw = 115f * scale, ch = 155f * scale, gap = spacing * scale;
-            float startX = (w - (hand.size * cw + (hand.size - 1) * gap)) / 2f;
-            for (int i = 0; i < hand.size; i++) {
-                Card c = hand.get(i);
-                c.setLayoutScale(scale);
-                c.setPosition(startX + i * (cw + gap), 15f);
-            }
+        // A physical hand: cards overlap, sit along the bottom edge, and remain
+        // individually selectable. Later cards render on top and hit-testing is reversed.
+        float scale = currentCardScale();
+        float cw = 115f * scale;
+        float step = cw * 0.58f;
+        float total = cw + Math.max(0, hand.size - 1) * step;
+        float startX = Math.max(8f, (w - total) / 2f);
+        float baseY = Math.max(8f, Math.min(24f, h * 0.035f));
+        for (int i = 0; i < hand.size; i++) {
+            Card c = hand.get(i);
+            c.setLayoutScale(scale);
+            c.setPosition(startX + i * step, baseY);
         }
     }
 
@@ -3104,14 +3094,10 @@ public class Main extends Game {
     private float currentCardScale() {
         float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
         int n = Math.max(1, hand.size);
-        if (w >= h) {
-            float spacing = 10f;
-            float required = n * 155f + (n - 1) * spacing;
-            return MathUtils.clamp(h - 40f < required ? (h - 40f) / required : 1f, 0.50f, 0.82f);
-        }
-        float spacing = 6f;
-        float required = n * 115f + (n - 1) * spacing;
-        return MathUtils.clamp(w - 20f < required ? (w - 20f) / required : 1f, 0.42f, 0.75f);
+        float requiredWidth = 115f + (n - 1) * (115f * 0.58f);
+        float widthScale = (w - 24f) / requiredWidth;
+        float heightScale = (h * 0.52f - 12f) / 155f;
+        return MathUtils.clamp(Math.min(0.82f, Math.min(widthScale, heightScale)), 0.42f, 0.82f);
     }
 
     private void selectCardFromTap(Card c) {
@@ -3226,7 +3212,8 @@ public class Main extends Game {
     }
 
     private int upgradeCost(int i) {
-        return UP_BASE_COST[i] * (upLevels[i] + 1);
+        // Early levels are affordable; higher ranks still ask for meaningful saving.
+        return UP_BASE_COST[i] * (upLevels[i] + 1) * (upLevels[i] + 1);
     }
 
     private void layoutUpgradeRows() {
@@ -6070,7 +6057,7 @@ public class Main extends Game {
                 spawnFloat("ARROWPROOF", tileCenterX(hit.getX()), tileCenterY(hit.getY()) + 34f, .85f, .55f, .25f);
                 message("Arrowproof! The arrow fizzled.", 1.2f);
             } else {
-                damageEnemy(hit, 2);
+                damageEnemy(hit, hit.getVariant() == EnemyVariant.BOSS ? 2 : 1);
             }
         }
         pendingHitEnemy = null;
