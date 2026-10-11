@@ -526,6 +526,7 @@ public class Main extends Game {
     private RewardScreen rewardScreen;
     private GameOverScreen gameOverScreen;
     private int difficulty = 1;
+    private int enemyTurnCounter = 0;
     private final Corruption corruption = new Corruption();
 
     private static final float DROP_STAGGER = 0.18f;
@@ -5341,6 +5342,7 @@ public class Main extends Game {
 
     private void moveEnemies() {
         shiftCards();
+        enemyTurnCounter++;
         applyEnemyStatuses();
         if (allEnemiesDefeated()) return;
 
@@ -5385,6 +5387,21 @@ public class Main extends Game {
                     break;
                 }
             }
+            if (e.isAlive() && !enemyCapturedPlayer(e)) applyEnemyArchetypeAttack(e);
+        }
+    }
+
+    private void applyEnemyArchetypeAttack(Enemy e) {
+        if ((enemyTurnCounter & 1) != 0) return; // Special attacks have a one-turn warning window.
+        int dx = Math.abs(e.getX() - player.getX());
+        int dy = Math.abs(e.getY() - player.getY());
+        if (e.getVariant() == EnemyVariant.PYROMANCER && dx == dy && dx > 0 && dx <= 2) {
+            spawnFloat("EMBER", tileCenterX(e.getX()), tileCenterY(e.getY()) + 34f, 1f, .38f, .12f);
+            message("Pyromancer: diagonal flame! Move off its line.", 1.4f);
+            damagePlayer(1);
+        } else if (e.getVariant() == EnemyVariant.CRYOMANCER && ((dx == 0 && dy > 0 && dy <= 2) || (dy == 0 && dx > 0 && dx <= 2))) {
+            message("Cryomancer: frost locks a card!", 1.4f);
+            crippleRandomCard();
         }
     }
 
@@ -5392,7 +5409,12 @@ public class Main extends Game {
         EnemyCurse c = enemyCurses.get(e);
         if (c == EnemyCurse.HASTY) return 2;
         if (c == EnemyCurse.RELENTLESS && playerHp * 2 <= playerMaxHp) return 2;
-        if (e.getVariant() == EnemyVariant.BOSS) return 2;
+        if (e.getVariant() == EnemyVariant.BOSS) {
+            int bossNumber = FloorProgression.bossNumberForRoom(difficulty);
+            if (bossNumber >= 3) return 3;
+            if (bossNumber == 2 && e.getHealth() * 2 <= e.getMaxHealth()) return 3;
+            return 2;
+        }
         if (e.getVariant() == EnemyVariant.BERSERKER
             && e.getHealth() * 2 <= e.getMaxHealth()) return 2;
         return 1;
@@ -6056,8 +6078,14 @@ public class Main extends Game {
             if (captureCurses.get(hit) == CaptureCurse.ARROWPROOF) {
                 spawnFloat("ARROWPROOF", tileCenterX(hit.getX()), tileCenterY(hit.getY()) + 34f, .85f, .55f, .25f);
                 message("Arrowproof! The arrow fizzled.", 1.2f);
+            } else if (hit.getVariant() == EnemyVariant.BOSS) {
+                damageEnemy(hit, 2);
+            } else if (hit.getHealth() > 1) {
+                damageEnemy(hit, 1);
+                message("Arrow hit: 1 damage. Finish the enemy with a card.", 1.3f);
             } else {
-                damageEnemy(hit, hit.getVariant() == EnemyVariant.BOSS ? 2 : 1);
+                spawnFloat("WEAKENED", tileCenterX(hit.getX()), tileCenterY(hit.getY()) + 28f, .9f, .8f, .35f);
+                message("Arrows weaken; they cannot finish an enemy.", 1.3f);
             }
         }
         pendingHitEnemy = null;
