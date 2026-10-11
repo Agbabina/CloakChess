@@ -4933,7 +4933,7 @@ public class Main extends Game {
                         augmentBadges = Math.max(0, augmentBadges - 1);
                         usingAugmentBadge = false;
                         saveMeta();
-                        saveGameState();
+                        autosave();
                         augmentSound.play();
                         message(c.getName() + " instantly gained " + badgeAugment.getName() + "!", 2.2f);
                         return;
