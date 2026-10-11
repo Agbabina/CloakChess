@@ -1529,21 +1529,22 @@ public class Main extends Game {
     private void positionCards() {
         if (hand == null || hand.size == 0) return;
 
+        float screenW = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
         float scale = currentCardScale();
         float cw = 115f * scale;
         float ch = 155f * scale;
 
-        // Larger vertical fan on the left side, leaving the board visible.
-        // Later cards sit slightly higher and closer to the board.
+        // Right-side vertical fan: the cards stay readable without covering the board.
         float stepY = ch * 0.55f;
         float totalH = ch + Math.max(0, hand.size - 1) * stepY;
         float startY = Math.max(8f, (h - totalH) / 2f);
+        float startX = screenW - cw - 12f;
 
         for (int i = 0; i < hand.size; i++) {
             Card c = hand.get(i);
             c.setLayoutScale(scale);
-            c.setPosition(10f + i * 7f, startY + i * stepY);
+            c.setPosition(startX - i * 5f, startY + i * stepY);
         }
     }
 
@@ -2733,10 +2734,10 @@ public class Main extends Game {
 
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
-        // Keep the objective in a compact right-side column instead of over the board.
+        // Keep the objective in the upper-left HUD column; cards now occupy the right side.
         float panelW = Math.min(260f, Math.max(190f, w * 0.22f));
         float panelH = omen == OMEN_NONE ? 92f : 132f;
-        float x = Math.max(12f, w - panelW - 18f);
+        float x = 18f;
         float y = h - 150f - panelH;
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -3116,7 +3117,8 @@ public class Main extends Game {
     private float currentCardScale() {
         float h = Gdx.graphics.getHeight();
         int n = Math.max(1, hand.size);
-        float sideSpace = Player.getBoardX() - 16f;
+        float boardRight = Player.getBoardX() + Player.BOARD_SIZE * Player.TILE_SIZE;
+        float sideSpace = Gdx.graphics.getWidth() - boardRight - 16f;
         float widthScale = sideSpace / 115f;
         float requiredHeight = 155f * (1f + (n - 1) * 0.55f);
         float heightScale = (h - 32f) / requiredHeight;
@@ -6774,8 +6776,9 @@ public class Main extends Game {
         float screenW = Gdx.graphics.getWidth();
         float screenH = Gdx.graphics.getHeight();
         float w = Math.min(220f, Math.max(170f, screenW * 0.19f));
-        float x = Math.max(12f, screenW - w - 18f);
-        float y = screenH - 178f;
+        // Match the objective panel on the left so the card column stays clear.
+        float x = 18f;
+        float y = screenH - 325f;
         float barH = 10f;
         float p = corruption.getProgress();
 
