@@ -475,6 +475,14 @@ public class Enemy {
         return maxHealth;
     }
 
+    /** Restores health without exceeding the enemy's maximum. */
+    public boolean heal(int amount) {
+        if (!alive || amount <= 0 || health >= maxHealth) return false;
+        int before = health;
+        health = Math.min(maxHealth, health + amount);
+        return health > before;
+    }
+
     // DAMAGE / DEATH
     public boolean takeDamage(int amount) {
         if (!alive) {
