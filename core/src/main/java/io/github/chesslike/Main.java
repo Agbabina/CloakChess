@@ -5411,6 +5411,18 @@ public class Main extends Game {
         } else if (e.getVariant() == EnemyVariant.CRYOMANCER && ((dx == 0 && dy > 0 && dy <= 2) || (dy == 0 && dx > 0 && dx <= 2))) {
             message("Cryomancer: frost locks a card!", 1.4f);
             crippleRandomCard();
+        } else if (e.getVariant() == EnemyVariant.MENDER) {
+            Enemy weakest = null;
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy ally = enemies.get(i);
+                if (ally == e || !ally.isAlive() || ally.getHealth() >= ally.getMaxHealth()) continue;
+                if (Math.abs(ally.getX() - e.getX()) <= 1 && Math.abs(ally.getY() - e.getY()) <= 1
+                    && (weakest == null || ally.getHealth() < weakest.getHealth())) weakest = ally;
+            }
+            if (weakest != null && weakest.heal(1)) {
+                spawnFloat("+1 HP", tileCenterX(weakest.getX()), tileCenterY(weakest.getY()) + 28f, .3f, 1f, .55f);
+                message("Mender restored an ally.", 1.2f);
+            }
         }
     }
 
@@ -5649,7 +5661,7 @@ public class Main extends Game {
         if (finalBossDefeated) {
             // Victory is a successful run, so grant the same soul payout as defeat.
             lastRunSouls = Math.round((difficulty * SOULS_PER_ROOM + runBonusSouls)
-                * soulMultiplier(runPact) * (1f + 0.15f * upLevels[4]));
+                * soulMultiplier(runPact) * (1f + 0.25f * upLevels[4]));
             souls += lastRunSouls;
             saveMeta();
             clearAutosave();
@@ -5973,7 +5985,7 @@ public class Main extends Game {
             blitzBreakdownTimer = 0f;
         }
 
-        lastRunSouls = Math.round((difficulty * SOULS_PER_ROOM + runBonusSouls) * soulMultiplier(runPact) * (1f + 0.15f * upLevels[4]));
+        lastRunSouls = Math.round((difficulty * SOULS_PER_ROOM + runBonusSouls) * soulMultiplier(runPact) * (1f + 0.25f * upLevels[4]));
         souls += lastRunSouls;
         saveMeta();
         clearAutosave();
