@@ -1725,8 +1725,17 @@ public class Main extends Game {
 
     // Kills an enemy outright (ignores armor shields) - used for captures so nothing is left on a tile
     private void killEnemy(Enemy enemy) {
-        if (enemy == null) return;
+        if (enemy == null || !enemy.isAlive()) return;
         armorShields.remove(enemy);
+        if (enemy.getVariant() == EnemyVariant.BOSS) {
+            // A capture is a heavy hit, not an instant kill. Bosses need several
+            // well-planned captures, with later bosses demanding more damage.
+            int bossNumber = FloorProgression.bossNumberForRoom(difficulty);
+            int captureDamage = bossNumber <= 1 ? 4 : bossNumber == 2 ? 4 : 5;
+            damageEnemy(enemy, captureDamage);
+            spawnFloat("BOSS HIT -" + captureDamage, tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 52f, 1f, .55f, .25f);
+            return;
+        }
         damageEnemy(enemy, 999);
     }
 
@@ -2637,7 +2646,7 @@ public class Main extends Game {
 
         // Price: 1 HP (Dark Pact heals it back)
         playerHp = Math.max(1, playerHp - 1);
-        healPlayer(upLevels[3]);
+        healPlayer(upLevels[3] * 2);
 
         // Rewards
         gold += 20;
