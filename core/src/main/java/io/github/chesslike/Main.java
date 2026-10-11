@@ -5296,6 +5296,7 @@ public class Main extends Game {
 
             spawnSlash(player.getX(), player.getY());
             registerCapture(target, cc, curse, invisibleTurns > 0, captureHealthPercent);
+            triggerCardEvolution(cc, target);
             refillHandIfNeeded();
 
             groundPound(player.getX(), player.getY());
@@ -5308,6 +5309,82 @@ public class Main extends Game {
 
         return capturedAny;
     }
+    /**
+     * Augment pairs evolve into a single action with multiple follow-up effects.
+     * These effects deliberately do not recursively register captures.
+     */
+    private void triggerCardEvolution(Card card, Enemy anchor) {
+        if (card == null || anchor == null) return;
+
+        int ax = anchor.getX();
+        int ay = anchor.getY();
+
+        // BLOOD NOVA: Fury + Vampiric. A hit splashes nearby enemies and feeds
+        // the player for every enemy the nova actually finishes.
+        if (card.hasFury() && card.hasVampiric()) {
+            int kills = 0;
+            int hits = 0;
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy nearby = enemies.get(i);
+                if (nearby == anchor || !nearby.isAlive()) continue;
+                int distance = Math.max(Math.abs(nearby.getX() - ax), Math.abs(nearby.getY() - ay));
+                if (distance <= 1) {
+                    hits++;
+                    if (damageEnemy(nearby, 1, 1f, .2f, .35f)) kills++;
+                }
+            }
+            if (hits > 0) {
+                if (kills > 0) healPlayer(Math.min(3, kills));
+                showPopup("BLOOD NOVA! " + hits + " HIT" + (hits == 1 ? "" : "S"),
+                    1f, .2f, .45f, 1.0f);
+                startShake(.12f, 3f);
+            }
+        }
+
+        // TOXIC INFERNO: Venom + Burn. Detonates nearby enemies instead of
+        // making the player wait for damage-over-time ticks.
+        if (card.hasVenom() && card.hasBurn()) {
+            int detonated = 0;
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy nearby = enemies.get(i);
+                if (nearby == anchor || !nearby.isAlive()) continue;
+                int distance = Math.max(Math.abs(nearby.getX() - ax), Math.abs(nearby.getY() - ay));
+                if (distance <= 2) {
+                    detonated++;
+                    damageEnemy(nearby, 1, .35f, 1f, .3f);
+                }
+            }
+            if (detonated > 0) {
+                showPopup("TOXIC INFERNO! " + detonated + " CHAIN HITS",
+                    .45f, 1f, .3f, 1.0f);
+                startShake(.1f, 2.5f);
+            }
+        }
+
+        // GOLD RUSH: Gilded + Mana Surge turn every capture into more resources.
+        if (card.hasGilded() && card.hasManaSurge()) {
+            gold += 6;
+            mana = Math.min(getMaxMana(), mana + 1);
+            spawnFloat("+6G +1MP", tileCenterX(player.getX()),
+                tileCenterY(player.getY()) + 92f, 1f, .82f, .2f);
+            if (captureCombo >= 3) {
+                gold += 3 * (captureCombo - 2);
+                spawnFloat("CHAIN BONUS +" + (3 * (captureCombo - 2)) + "G",
+                    tileCenterX(player.getX()), tileCenterY(player.getY()) + 112f,
+                    1f, .72f, .18f);
+            }
+        }
+
+        // ECHO REBOUND: the normal Rebound action already preserves the turn;
+        // this evolution refunds mana so chaining remains sustainable.
+        if (card.hasRebound() && card.hasEcho()) {
+            mana = Math.min(getMaxMana(), mana + 1);
+            spawnFloat("ECHO CHAIN +1MP", tileCenterX(player.getX()),
+                tileCenterY(player.getY()) + 104f, .55f, .8f, 1f);
+            showPopup("ECHO CHAIN!", .55f, .8f, 1f, .95f);
+        }
+    }
+
     private Enemy findQueenChainTarget(Enemy excluded) {
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
