@@ -5140,8 +5140,10 @@ public class Main extends Game {
         if (blitzMode && blitzManager != null) blitzManager.cardPlayed();
         CardModifier modifier = cardModifiers.get(card);
         boolean echo = card.hasEcho() && random.nextFloat() < 0.35f;
-        boolean free = (modifier == CardModifier.FRUGAL && random.nextBoolean()) || echo;
+        boolean mirror = card.hasAugment(AugmentType.MIRROR) && random.nextFloat() < 0.25f;
+        boolean free = (modifier == CardModifier.FRUGAL && random.nextBoolean()) || echo || mirror;
         if (echo) spawnFloat("ECHO", tileCenterX(player.getX()), tileCenterY(player.getY()) + 40f, .9f, .9f, .9f);
+        if (mirror) spawnFloat("MIRROR!", tileCenterX(player.getX()), tileCenterY(player.getY()) + 58f, .6f, .8f, 1f);
         if (modifier == CardModifier.BLOODPRICE) {
             if (!damagePlayer(1)) {
                 message("Bloodprice took 1 HP", 1.5f);
@@ -5163,6 +5165,17 @@ public class Main extends Game {
         if (modifier == CardModifier.LEECH && captured) healPlayer(1);
         if (card.hasAegis()) gainDefense(1);
         if (card.hasVenom()) applyVenom();
+        if (card.hasAugment(AugmentType.FROSTBITE)) {
+            Enemy nearest = nearestLivingEnemy();
+            if (nearest != null) {
+                stunnedTurns.put(nearest, Math.max(1, stunnedTurns.get(nearest, 0)));
+                spawnFloat("FROSTBITE", tileCenterX(nearest.getX()), tileCenterY(nearest.getY()) + 36f, .35f, .8f, 1f);
+            }
+        }
+        if (card.hasAugment(AugmentType.OVERCHARGE)) {
+            mana = Math.min(getMaxMana(), mana + 1);
+            spawnFloat("+1 OVERCHARGE", tileCenterX(player.getX()), tileCenterY(player.getY()) + 64f, .4f, .7f, 1f);
+        }
         int surge = card.hasManaSurge() ? 2 : 0;
         if (surge > 0) spawnFloat("+2 MP", tileCenterX(player.getX()), tileCenterY(player.getY()) + 48f, .4f, .65f, 1f);
         if (card.isUsed()) hand.removeValue(card, true);
@@ -5372,6 +5385,16 @@ public class Main extends Game {
                     spawnFloat("FURY +1", tileCenterX(player.getX()), tileCenterY(player.getY()) + 62f, 1f, .3f, .3f);
                 }
 
+                if (cc != null && cc.hasAugment(AugmentType.EXECUTIONER)
+                    && target.getHealth() <= Math.max(1, target.getMaxHealth() / 2)) {
+                    captureDamage++;
+                    spawnFloat("EXECUTIONER +1", tileCenterX(target.getX()), tileCenterY(target.getY()) + 46f, 1f, .25f, .2f);
+                }
+                boolean luckyStrike = cc != null && cc.hasAugment(AugmentType.LUCKY_STRIKE) && random.nextFloat() < .20f;
+                if (luckyStrike) {
+                    captureDamage += 2;
+                    spawnFloat("LUCKY STRIKE!", tileCenterX(target.getX()), tileCenterY(target.getY()) + 60f, 1f, .8f, .2f);
+                }
                 damageEnemy(target, captureDamage);
 
                 if (captureDamage >= 2) {
@@ -5406,11 +5429,22 @@ public class Main extends Game {
                     gold += 8;
                     spawnFloat("+8g", tileCenterX(player.getX()), tileCenterY(player.getY()) + 80f, 1f, .85f, .25f);
                 }
+                if (cc.hasAugment(AugmentType.BLOODLUST)) healPlayer(1);
+                if (cc.hasAugment(AugmentType.TREASURE_HUNTER)) {
+                    gold += 12;
+                    spawnFloat("+12 TREASURE", tileCenterX(player.getX()), tileCenterY(player.getY()) + 96f, 1f, .82f, .2f);
+                }
+                if (cc.hasAugment(AugmentType.SOUL_EATER)) {
+                    runBonusSouls++;
+                    spawnFloat("+1 SOUL", tileCenterX(player.getX()), tileCenterY(player.getY()) + 112f, .7f, .5f, 1f);
+                }
+                if (cc.hasAugment(AugmentType.OVERCHARGE)) mana = Math.min(getMaxMana(), mana + 1);
             }
 
             spawnSlash(player.getX(), player.getY());
             registerCapture(target, cc, curse, invisibleTurns > 0, captureHealthPercent);
             triggerCardEvolution(cc, target);
+            triggerNewAugmentChain(cc, target);
             refillHandIfNeeded();
 
             groundPound(player.getX(), player.getY());
@@ -5496,6 +5530,57 @@ public class Main extends Game {
             spawnFloat("ECHO CHAIN +1MP", tileCenterX(player.getX()),
                 tileCenterY(player.getY()) + 104f, .55f, .8f, 1f);
             showPopup("ECHO CHAIN!", .55f, .8f, 1f, .95f);
+        }
+    }
+
+    private Enemy nearestLivingEnemy() {
+        Enemy nearest = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if (e == null || !e.isAlive() || e.isFalling()) continue;
+            int d = Math.abs(e.getX() - player.getX()) + Math.abs(e.getY() - player.getY());
+            if (d < bestDistance) { bestDistance = d; nearest = e; }
+        }
+        return nearest;
+    }
+
+    /** New augment effects are deliberately one-way: chain damage never triggers another chain. */
+    private void triggerNewAugmentChain(Card card, Enemy anchor) {
+        if (card == null || anchor == null) return;
+        int ax = anchor.getX(), ay = anchor.getY();
+
+        if (card.hasAugment(AugmentType.CHAIN_LIGHTNING)) {
+            int hits = 0;
+            for (int i = 0; i < enemies.size && hits < 2; i++) {
+                Enemy e = enemies.get(i);
+                if (e == anchor || !e.isAlive() || e.isFalling()) continue;
+                int d = Math.max(Math.abs(e.getX() - ax), Math.abs(e.getY() - ay));
+                if (d <= 2) {
+                    hits++;
+                    damageEnemy(e, 1, .4f, .75f, 1f);
+                    spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 8, .3f, .7f, 1f, 28f);
+                }
+            }
+            if (hits > 0) showPopup("CHAIN LIGHTNING x" + hits, .4f, .75f, 1f, .95f);
+        }
+
+        if (card.hasAugment(AugmentType.BOMBER)) {
+            int hits = 0;
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy e = enemies.get(i);
+                if (e == anchor || !e.isAlive() || e.isFalling()) continue;
+                int d = Math.max(Math.abs(e.getX() - ax), Math.abs(e.getY() - ay));
+                if (d <= 1) {
+                    hits++;
+                    damageEnemy(e, 1, 1f, .45f, .12f);
+                }
+            }
+            if (hits > 0) {
+                spawnShockwave(ax, ay, 1.5f);
+                showPopup("BOMBER! " + hits + " BLAST HITS", 1f, .45f, .12f, .95f);
+                startShake(.1f, 3f);
+            }
         }
     }
 
