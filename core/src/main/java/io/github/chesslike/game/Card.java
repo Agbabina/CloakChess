@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.audio.Sound;
@@ -60,6 +61,8 @@ public class Card {
 
     private static Texture frameStandard;
     private static Texture frameAugmented;
+    // Optional per-augment artwork. Missing files are safely skipped so builds still run.
+    private static final ObjectMap<AugmentType, Texture> augmentIcons = new ObjectMap<>();
 
     private static Sound selectSound;
     private static Sound hoverSound;
@@ -74,6 +77,21 @@ public class Card {
         if (frameAugmented == null) {
             frameAugmented = new Texture(Gdx.files.internal("card_frame_augmented.png"));
             frameAugmented.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        }
+
+        // Icons live beside the card frames: icon_augment_soul_eater.png, etc.
+        for (AugmentType type : AugmentType.values()) {
+            if (augmentIcons.containsKey(type)) continue;
+            String file = "icon_augment_" + type.name().toLowerCase(java.util.Locale.ROOT) + ".png";
+            try {
+                if (Gdx.files.internal(file).exists()) {
+                    Texture icon = new Texture(Gdx.files.internal(file));
+                    icon.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+                    augmentIcons.put(type, icon);
+                }
+            } catch (Exception ignored) {
+                // Artwork is optional; the augment name remains visible in the card text.
+            }
         }
 
         if (selectSound == null) {
@@ -96,6 +114,9 @@ public class Card {
             frameAugmented.dispose();
             frameAugmented = null;
         }
+
+        for (Texture icon : augmentIcons.values()) icon.dispose();
+        augmentIcons.clear();
 
         if (selectSound != null) {
             selectSound.dispose();
@@ -836,6 +857,27 @@ public class Card {
         else font.setColor(0.30f, 0.65f, 0.95f, 1f);
 
         font.draw(batch, movementType.toString(), drawX + 20f * scale, drawY + 75f * scale);
+
+        // Augment icons form a compact, readable strip at the card's upper-right.
+        // Each icon is optional; text fallback keeps augments discoverable if artwork is absent.
+        float iconSize = 18f * scale;
+        float iconX = drawX + WIDTH * scale - iconSize - 9f * scale;
+        float iconY = drawY + HEIGHT * scale - 62f * scale;
+        int shown = 0;
+        for (AugmentType type : augments) {
+            if (shown >= 4) break;
+            Texture icon = augmentIcons.get(type);
+            if (icon != null) {
+                batch.setColor(Color.WHITE);
+                batch.draw(icon, iconX - shown * (iconSize + 2f * scale), iconY, iconSize, iconSize);
+            } else if (shown == 0) {
+                font.getData().setScale(0.38f * scale);
+                font.setColor(new Color(1f, .82f, .42f, 1f));
+                font.draw(batch, "AUG", drawX + WIDTH * scale - 32f * scale, drawY + HEIGHT * scale - 62f * scale);
+            }
+            shown++;
+        }
+        font.getData().setScale(0.78f * scale);
 
         // ATTACK DAMAGE
         font.getData().setScale(0.70f * scale);

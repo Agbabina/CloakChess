@@ -1535,16 +1535,23 @@ public class Main extends Game {
         float cw = 115f * scale;
         float ch = 155f * scale;
 
-        // Right-side vertical fan: the cards stay readable without covering the board.
-        float stepY = ch * 0.55f;
+        // Clean right-side stack: aligned cards with a controlled overlap, never a diagonal fan.
+        float stepY = ch * 0.66f;
         float totalH = ch + Math.max(0, hand.size - 1) * stepY;
         float startY = Math.max(8f, (h - totalH) / 2f);
         float startX = screenW - cw - 12f;
 
+        // On short windows, tighten the overlap before allowing the stack to clip.
+        if (totalH > h - 16f && hand.size > 1) {
+            stepY = Math.max(36f, (h - 16f - ch) / (hand.size - 1));
+            totalH = ch + (hand.size - 1) * stepY;
+            startY = Math.max(8f, (h - totalH) / 2f);
+        }
+
         for (int i = 0; i < hand.size; i++) {
             Card c = hand.get(i);
             c.setLayoutScale(scale);
-            c.setPosition(startX - i * 5f, startY + i * stepY);
+            c.setPosition(startX, startY + i * stepY);
         }
     }
 
@@ -3120,7 +3127,7 @@ public class Main extends Game {
         float boardRight = Player.getBoardX() + Player.BOARD_SIZE * Player.TILE_SIZE;
         float sideSpace = Gdx.graphics.getWidth() - boardRight - 16f;
         float widthScale = sideSpace / 115f;
-        float requiredHeight = 155f * (1f + (n - 1) * 0.55f);
+        float requiredHeight = 155f * (1f + (n - 1) * 0.66f);
         float heightScale = (h - 32f) / requiredHeight;
         return MathUtils.clamp(Math.min(1.05f, Math.min(widthScale, heightScale)), 0.55f, 1.05f);
     }
@@ -3137,6 +3144,14 @@ public class Main extends Game {
 
     // Returns true when it consumed the touch
     private boolean handleCardDrag() {
+        // Badge mode needs the normal card-tap handler; drag handling would consume
+        // the tap before the badge can be applied.
+        if (usingAugmentBadge) {
+            dragCandidate = null;
+            draggedCard = null;
+            return false;
+        }
+
         // Dragging only works when no card/spell/arrow mode is active
         if (activeCard != null || shootMode || selectedSpell != null) {
             if (draggedCard != null) {
@@ -4918,7 +4933,7 @@ public class Main extends Game {
                         augmentBadges = Math.max(0, augmentBadges - 1);
                         usingAugmentBadge = false;
                         saveMeta();
-                        saveGameState();
+                        autosave();
                         augmentSound.play();
                         message(c.getName() + " instantly gained " + badgeAugment.getName() + "!", 2.2f);
                         return;
@@ -6773,19 +6788,28 @@ public class Main extends Game {
     }
 
     private void renderCorruptionHud() {
+        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+            || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+
         float screenW = Gdx.graphics.getWidth();
         float screenH = Gdx.graphics.getHeight();
-        float w = Math.min(220f, Math.max(170f, screenW * 0.19f));
-        // Match the objective panel on the left so the card column stays clear.
+        float w = Math.min(260f, Math.max(190f, screenW * 0.22f));
         float x = 18f;
-        float y = screenH - 325f;
+        float objectiveH = omen == OMEN_NONE ? 92f : 132f;
+        float objectiveY = screenH - 150f - objectiveH;
+        // Keep the corruption strip directly beneath the objective panel and inside
+        // the visible play area even on short laptop/mobile windows.
+        float panelH = 42f;
+        float y = MathUtils.clamp(objectiveY - 28f, panelH + 8f, screenH - 12f);
         float barH = 10f;
-        float p = corruption.getProgress();
+        float p = MathUtils.clamp(corruption.getProgress(), 0f, 1f);
 
         // Corruption lives directly below the objective panel as one quiet status strip.
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(.055f, .04f, .08f, .88f);
-        shapeRenderer.rect(x, y - 22f, w, 42f);
+        shapeRenderer.setColor(.055f, .04f, .08f, .94f);
+        shapeRenderer.rect(x, y - panelH / 2f, w, panelH);
+        shapeRenderer.setColor(.42f, .18f, .52f, 1f);
+        shapeRenderer.rect(x, y + panelH / 2f - 2f, w, 2f);
         shapeRenderer.setColor(.10f, .07f, .14f, .95f);
         shapeRenderer.rect(x + 8f, y - 7f, w - 16f, barH);
         shapeRenderer.setColor(.72f, .20f, .92f, 1f);
@@ -6797,7 +6821,7 @@ public class Main extends Game {
         font.setColor(new Color(.82f, .42f, 1f, 1f));
         font.draw(batch, "CORRUPTION  " + corruption.getLevel() + "%", x + 8f, y + 12f);
         font.getData().setScale(.31f);
-        font.setColor(new Color(.70f, .70f, .78f, 1f));
+        font.setColor(new Color(.82f, .80f, .90f, 1f));
         font.draw(batch, corruption.getStatusText(), x + 8f, y - 14f);
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
@@ -6927,7 +6951,6 @@ public class Main extends Game {
         batch.end();
         renderHud();
         renderAugmentBadgeButton();
-        renderCorruptionHud();
         renderShockwaves();
         renderDebris();
         renderSpellFx();
@@ -6940,6 +6963,7 @@ public class Main extends Game {
         renderBlitzComboText();
         renderUiButtons();
         renderTooltip();
+        renderCorruptionHud();
         rewardScreen.render(hand);
         if (shopScreen.isVisible()) shopScreen.render(gold);
         if (blitzRelicShop.isVisible()) blitzRelicShop.render(gold, blitzManager);
