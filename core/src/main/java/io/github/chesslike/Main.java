@@ -5404,6 +5404,26 @@ public class Main extends Game {
         if ((enemyTurnCounter & 1) != 0) return; // Special attacks have a one-turn warning window.
         int dx = Math.abs(e.getX() - player.getX());
         int dy = Math.abs(e.getY() - player.getY());
+        if (e.getVariant() == EnemyVariant.BOSS) {
+            int bossNumber = FloorProgression.bossNumberForRoom(difficulty);
+            boolean inRange;
+            if (bossNumber <= 1) {
+                inRange = Math.max(dx, dy) == 1;
+                if (inRange) message("Hollow King: ROYAL CLEAVE!", 1.3f);
+            } else if (bossNumber == 2) {
+                inRange = (dx == 0 || dy == 0) && dx + dy <= 2 && dx + dy > 0;
+                if (inRange) message("Hollow King: RUNE BLAST!", 1.3f);
+            } else {
+                inRange = Math.max(dx, dy) <= 2 && Math.max(dx, dy) > 0;
+                if (inRange) message("Hollow King: SHATTERING PULSE!", 1.3f);
+            }
+            if (inRange) {
+                damagePlayer(1);
+                if (bossNumber >= 3) crippleRandomCard();
+                spawnShockwave(e.getX(), e.getY(), bossNumber >= 3 ? 1.8f : 1.2f);
+            }
+            return;
+        }
         if (e.getVariant() == EnemyVariant.PYROMANCER && dx == dy && dx > 0 && dx <= 2) {
             spawnFloat("EMBER", tileCenterX(e.getX()), tileCenterY(e.getY()) + 34f, 1f, .38f, .12f);
             message("Pyromancer: diagonal flame! Move off its line.", 1.4f);
