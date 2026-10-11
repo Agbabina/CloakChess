@@ -1527,19 +1527,27 @@ public class Main extends Game {
 
     private void positionCards() {
         if (hand == null || hand.size == 0) return;
-        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
-        // A physical hand: cards overlap, sit along the bottom edge, and remain
-        // individually selectable. Later cards render on top and hit-testing is reversed.
+
+        float w = Gdx.graphics.getWidth();
+        float h = Gdx.graphics.getHeight();
         float scale = currentCardScale();
         float cw = 115f * scale;
-        float step = cw * 0.58f;
+        float ch = 155f * scale;
+
+        // Fanned physical hand: overlapping cards follow a shallow arc, with
+        // the middle cards lifted toward the focal point. Keep the hand centered.
+        float step = cw * (hand.size >= 5 ? 0.48f : 0.54f);
         float total = cw + Math.max(0, hand.size - 1) * step;
-        float startX = Math.max(8f, (w - total) / 2f);
-        float baseY = Math.max(8f, Math.min(24f, h * 0.035f));
+        float startX = Math.max(4f, (w - total) / 2f);
+        float baseY = Math.max(2f, Math.min(12f, h * 0.018f));
+        float arcHeight = Math.min(13f, ch * 0.085f);
+
         for (int i = 0; i < hand.size; i++) {
             Card c = hand.get(i);
+            float t = hand.size <= 1 ? 0.5f : i / (float) (hand.size - 1);
+            float arc = (float) Math.sin(t * Math.PI) * arcHeight;
             c.setLayoutScale(scale);
-            c.setPosition(startX + i * step, baseY);
+            c.setPosition(startX + i * step, baseY + arc);
         }
     }
 
@@ -2729,42 +2737,45 @@ public class Main extends Game {
 
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
-
-        float panelW = Math.min(310f, w - 260f);
-        if (panelW < 210f) panelW = Math.max(210f, w - 40f);
-        float panelH = 82f;
-        float x = Math.max(10f, (w - panelW) / 2f);
-        float y = h - 120f;
+        // Keep the objective in a compact right-side column instead of over the board.
+        float panelW = Math.min(260f, Math.max(190f, w * 0.22f));
+        float panelH = omen == OMEN_NONE ? 92f : 132f;
+        float x = Math.max(12f, w - panelW - 18f);
+        float y = h - 150f - panelH;
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(.08f, .10f, .16f, .92f);
+        shapeRenderer.setColor(.055f, .065f, .10f, .88f);
         shapeRenderer.rect(x, y, panelW, panelH);
+        shapeRenderer.setColor(.95f, .80f, .30f, .85f);
+        shapeRenderer.rect(x, y + panelH - 2f, panelW, 2f);
         shapeRenderer.end();
 
         batch.begin();
-        font.getData().setScale(.62f);
+        font.getData().setScale(.54f);
         font.setColor(new Color(.95f, .80f, .30f, 1f));
-        font.draw(batch, "OBJECTIVE", x + 12f, y + panelH - 16f);
+        font.draw(batch, "OBJECTIVE", x + 10f, y + panelH - 16f);
 
-        font.getData().setScale(.42f);
+        font.getData().setScale(.39f);
         font.setColor(Color.WHITE);
-        font.draw(batch, objectiveName(), x + 12f, y + panelH - 39f);
+        font.draw(batch, objectiveName(), x + 10f, y + panelH - 36f);
 
         String progress = objectiveProgressText();
         font.setColor(objectiveCompleted ? new Color(.35f, 1f, .55f, 1f)
             : new Color(.75f, .80f, .88f, 1f));
-        font.draw(batch, progress, x + 12f, y + 20f);
+        font.draw(batch, progress, x + 10f, y + panelH - 55f);
 
-        font.setColor(new Color(.55f, .65f, .80f, 1f));
-        font.draw(batch, "Combo x" + captureCombo + "   Best x" + bestCombo, x + panelW - 135f, y + 20f);
+        font.setColor(new Color(.68f, .73f, .84f, 1f));
+        font.draw(batch, "COMBO x" + captureCombo + "  BEST x" + bestCombo,
+            x + 10f, y + panelH - 74f);
 
         if (omen != OMEN_NONE) {
-            font.getData().setScale(.45f);
-            font.setColor(omenColor());
-            font.draw(batch, "OMEN: " + OMEN_NAMES[omen], x, y - 8f);
             font.getData().setScale(.38f);
+            font.setColor(omenColor());
+            font.draw(batch, "OMEN: " + OMEN_NAMES[omen], x + 10f, y + panelH - 94f);
+            font.getData().setScale(.32f);
             font.setColor(new Color(.75f, .78f, .85f, 1f));
-            font.draw(batch, OMEN_DESC[omen], x, y - 28f);
+            font.draw(batch, OMEN_DESC[omen], x + 10f, y + panelH - 111f,
+                panelW - 20f, Align.left, true);
         }
 
         font.getData().setScale(1f);
@@ -6739,24 +6750,31 @@ public class Main extends Game {
     }
 
     private void renderCorruptionHud() {
-        float x = 20f, y = Gdx.graphics.getHeight() - 105f;
-        float w = 170f, h = 12f;
+        float screenW = Gdx.graphics.getWidth();
+        float screenH = Gdx.graphics.getHeight();
+        float w = Math.min(220f, Math.max(170f, screenW * 0.19f));
+        float x = Math.max(12f, screenW - w - 18f);
+        float y = screenH - 178f;
+        float barH = 10f;
         float p = corruption.getProgress();
 
+        // Corruption lives directly below the objective panel as one quiet status strip.
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(.10f, .07f, .14f, .9f);
-        shapeRenderer.rect(x, y, w, h);
+        shapeRenderer.setColor(.055f, .04f, .08f, .88f);
+        shapeRenderer.rect(x, y - 22f, w, 42f);
+        shapeRenderer.setColor(.10f, .07f, .14f, .95f);
+        shapeRenderer.rect(x + 8f, y - 7f, w - 16f, barH);
         shapeRenderer.setColor(.72f, .20f, .92f, 1f);
-        shapeRenderer.rect(x, y, w * p, h);
+        shapeRenderer.rect(x + 8f, y - 7f, (w - 16f) * p, barH);
         shapeRenderer.end();
 
         batch.begin();
-        font.getData().setScale(.48f);
+        font.getData().setScale(.42f);
         font.setColor(new Color(.82f, .42f, 1f, 1f));
-        font.draw(batch, "CORRUPTION " + corruption.getLevel() + "%", x, y + 25f);
-        font.getData().setScale(.36f);
+        font.draw(batch, "CORRUPTION  " + corruption.getLevel() + "%", x + 8f, y + 12f);
+        font.getData().setScale(.31f);
         font.setColor(new Color(.70f, .70f, .78f, 1f));
-        font.draw(batch, corruption.getStatusText(), x, y - 7f);
+        font.draw(batch, corruption.getStatusText(), x + 8f, y - 14f);
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
         batch.end();
