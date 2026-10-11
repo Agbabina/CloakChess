@@ -579,7 +579,8 @@ public class Card {
             || hasGilded
             || hasAegis
             || hasVenom
-            || hasEcho;
+            || hasEcho
+            || !augments.isEmpty();
     }
 
     // ---- Save / load for the new augments (comma separated, e.g. "FURY,ECHO") ----
@@ -593,12 +594,11 @@ public class Card {
         if (hasAegis) sb.append("AEGIS,");
         if (hasVenom) sb.append("VENOM,");
         if (hasEcho) sb.append("ECHO,");
-        for (AugmentType type : new AugmentType[] {
-            AugmentType.CHAIN_LIGHTNING, AugmentType.EXECUTIONER, AugmentType.FROSTBITE,
-            AugmentType.SOUL_EATER, AugmentType.OVERCHARGE, AugmentType.TREASURE_HUNTER,
-            AugmentType.BLOODLUST, AugmentType.MIRROR, AugmentType.BOMBER, AugmentType.LUCKY_STRIKE
-        }) {
-            if (augments.contains(type)) sb.append(type.name()).append(",");
+        for (AugmentType type : augments) {
+            if (type != AugmentType.FURY && type != AugmentType.MANA_SURGE
+                && type != AugmentType.VAMPIRIC && type != AugmentType.GILDED
+                && type != AugmentType.AEGIS && type != AugmentType.VENOM
+                && type != AugmentType.ECHO) sb.append(type.name()).append(",");
         }
         return sb.toString();
     }
