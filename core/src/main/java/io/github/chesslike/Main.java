@@ -1535,16 +1535,23 @@ public class Main extends Game {
         float cw = 115f * scale;
         float ch = 155f * scale;
 
-        // Right-side vertical fan: the cards stay readable without covering the board.
-        float stepY = ch * 0.55f;
+        // Clean right-side stack: aligned cards with a controlled overlap, never a diagonal fan.
+        float stepY = ch * 0.66f;
         float totalH = ch + Math.max(0, hand.size - 1) * stepY;
         float startY = Math.max(8f, (h - totalH) / 2f);
         float startX = screenW - cw - 12f;
 
+        // On short windows, tighten the overlap before allowing the stack to clip.
+        if (totalH > h - 16f && hand.size > 1) {
+            stepY = Math.max(36f, (h - 16f - ch) / (hand.size - 1));
+            totalH = ch + (hand.size - 1) * stepY;
+            startY = Math.max(8f, (h - totalH) / 2f);
+        }
+
         for (int i = 0; i < hand.size; i++) {
             Card c = hand.get(i);
             c.setLayoutScale(scale);
-            c.setPosition(startX - i * 5f, startY + i * stepY);
+            c.setPosition(startX, startY + i * stepY);
         }
     }
 
@@ -3120,7 +3127,7 @@ public class Main extends Game {
         float boardRight = Player.getBoardX() + Player.BOARD_SIZE * Player.TILE_SIZE;
         float sideSpace = Gdx.graphics.getWidth() - boardRight - 16f;
         float widthScale = sideSpace / 115f;
-        float requiredHeight = 155f * (1f + (n - 1) * 0.55f);
+        float requiredHeight = 155f * (1f + (n - 1) * 0.66f);
         float heightScale = (h - 32f) / requiredHeight;
         return MathUtils.clamp(Math.min(1.05f, Math.min(widthScale, heightScale)), 0.55f, 1.05f);
     }
@@ -3137,6 +3144,14 @@ public class Main extends Game {
 
     // Returns true when it consumed the touch
     private boolean handleCardDrag() {
+        // Badge mode needs the normal card-tap handler; drag handling would consume
+        // the tap before the badge can be applied.
+        if (usingAugmentBadge) {
+            dragCandidate = null;
+            draggedCard = null;
+            return false;
+        }
+
         // Dragging only works when no card/spell/arrow mode is active
         if (activeCard != null || shootMode || selectedSpell != null) {
             if (draggedCard != null) {
@@ -6773,12 +6788,17 @@ public class Main extends Game {
     }
 
     private void renderCorruptionHud() {
+        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+            || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+
         float screenW = Gdx.graphics.getWidth();
         float screenH = Gdx.graphics.getHeight();
-        float w = Math.min(220f, Math.max(170f, screenW * 0.19f));
-        // Match the objective panel on the left so the card column stays clear.
+        float w = Math.min(260f, Math.max(190f, screenW * 0.22f));
         float x = 18f;
-        float y = screenH - 325f;
+        float objectiveH = omen == OMEN_NONE ? 92f : 132f;
+        float objectiveY = screenH - 150f - objectiveH;
+        // Place it below the objective panel, not at a fixed coordinate that can overlap it.
+        float y = objectiveY - 48f;
         float barH = 10f;
         float p = corruption.getProgress();
 
@@ -6927,7 +6947,6 @@ public class Main extends Game {
         batch.end();
         renderHud();
         renderAugmentBadgeButton();
-        renderCorruptionHud();
         renderShockwaves();
         renderDebris();
         renderSpellFx();
@@ -6940,6 +6959,7 @@ public class Main extends Game {
         renderBlitzComboText();
         renderUiButtons();
         renderTooltip();
+        renderCorruptionHud();
         rewardScreen.render(hand);
         if (shopScreen.isVisible()) shopScreen.render(gold);
         if (blitzRelicShop.isVisible()) blitzRelicShop.render(gold, blitzManager);
