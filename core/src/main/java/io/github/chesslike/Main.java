@@ -3127,7 +3127,8 @@ public class Main extends Game {
         clickSound.play();
         activeCard = c;
         c.setSelected(true);
-        message(c.getName() + " selected", 1.5f);
+        player.setSelected(true);
+        message(c.getName() + " selected — tap a destination", 1.5f);
         tooltipEnemy = null;
     }
 
@@ -4921,7 +4922,9 @@ public class Main extends Game {
                     }
                     activeCard = c;
                     c.setSelected(true);
-                    message(c.getName() + " selected", 1.5f);
+                    player.setSelected(true);
+                    kingCardCycleIndex = hand.indexOf(c, true);
+                    message(c.getName() + " selected — tap a destination", 1.5f);
                     hitCard = true;
                     break;
                 }
@@ -4965,12 +4968,16 @@ public class Main extends Game {
             player.setSelected(false);
             return;
         }
-        if (!player.isSelected()) {
-            if (player.isClicked(touchX, touchY)) {
-                clickSound.play();
-                player.setSelected(true);
-                message("Choose a destination", 1.5f);
-            }
+        // The king is also a quick card-cycle control. Movement no longer
+        // requires a separate king-selection tap: tap any legal destination.
+        if (player.isClicked(touchX, touchY)) {
+            clickSound.play();
+            kingCardCycleIndex = (kingCardCycleIndex + 1) % Math.max(1, hand.size);
+            activeCard.setSelected(false);
+            activeCard = hand.get(kingCardCycleIndex);
+            activeCard.setSelected(true);
+            player.setSelected(true);
+            message(activeCard.getName() + " selected — tap a destination", 1.5f);
             return;
         }
 
