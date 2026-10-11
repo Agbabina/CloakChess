@@ -81,9 +81,12 @@ public class Enemy {
         this.variant = variant == null ? EnemyVariant.NORMAL : variant;
         this.movementRules = createMovementRules(movementType);
 
-        this.maxHealth = this.variant == EnemyVariant.BOSS
-            ? this.variant.getBonusHealth()
-            : rollMaxHealth(room, difficulty) + this.variant.getBonusHealth() - 1;
+        if (this.variant == EnemyVariant.BOSS) {
+            int bossNumber = FloorProgression.bossNumberForRoom(room);
+            this.maxHealth = bossNumber <= 1 ? 12 : bossNumber == 2 ? 18 : 24;
+        } else {
+            this.maxHealth = rollMaxHealth(room, difficulty) + this.variant.getBonusHealth() - 1;
+        }
         this.health = maxHealth;
 
         texture = new Texture(texturePath);
@@ -146,6 +149,15 @@ public class Enemy {
 
     // CREATE RULES
     private MovementRules createMovementRules(Card.MovementType type) {
+        switch (variant) {
+            case STRIKER: return new KnightRules();
+            case PYROMANCER: return new BishopRules();
+            case CRYOMANCER: return new RookRules();
+            case MENDER: return new BishopRules();
+            case NECROMANCER: return randomChameleonRules();
+            case SUMMONER: return new QueenRules();
+            default: break;
+        }
         switch (type) {
             case KNIGHT:
                 return new KnightRules();
@@ -461,6 +473,14 @@ public class Enemy {
 
     public int getMaxHealth() {
         return maxHealth;
+    }
+
+    /** Restores health without exceeding the enemy's maximum. */
+    public boolean heal(int amount) {
+        if (!alive || amount <= 0 || health >= maxHealth) return false;
+        int before = health;
+        health = Math.min(maxHealth, health + amount);
+        return health > before;
     }
 
     // DAMAGE / DEATH

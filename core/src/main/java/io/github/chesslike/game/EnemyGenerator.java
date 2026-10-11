@@ -143,7 +143,7 @@ public class EnemyGenerator {
 
     private Enemy createEnemy(int x, int y, Card.MovementType type, int room, EnemyVariant variant) {
 
-        String texture = getTexture(type);
+        String texture = getTexture(type, variant);
 
         // Rooms 6-10 = 2 HP, rooms 11+ roll 3 or 4.
         // The chance of 4 HP climbs 10% per room after room 10.
@@ -162,11 +162,19 @@ public class EnemyGenerator {
         // Room 8+: 3% Plaguebearer
         int roll = random.nextInt(100);
 
-        if (room >= 8 && roll < 3) return EnemyVariant.PLAGUEBEARER;
+        if (room >= 8) {
+            if (roll < 3) return EnemyVariant.PYROMANCER;
+            if (roll < 6) return EnemyVariant.CRYOMANCER;
+            if (roll < 8) return EnemyVariant.NECROMANCER;
+            if (roll < 10) return EnemyVariant.MENDER;
+            if (roll < 12) return EnemyVariant.SUMMONER;
+            if (roll < 14) return EnemyVariant.STRIKER;
+            if (roll < 17) return EnemyVariant.PLAGUEBEARER;
+            if (roll < 22) return EnemyVariant.BERSERKER;
+        }
         if (room >= 6 && roll >= 3 && roll < 8) return EnemyVariant.BERSERKER;
         if (room >= 4 && roll >= 8 && roll < 14) return EnemyVariant.PHANTOM;
         if (room >= 3 && roll >= 14 && roll < 22) return EnemyVariant.ARMORED;
-
         return EnemyVariant.NORMAL;
     }
 
@@ -174,7 +182,20 @@ public class EnemyGenerator {
     // TEXTURE
     // =========================================
 
-    private String getTexture(Card.MovementType type) {
+    private String getTexture(Card.MovementType type, EnemyVariant variant) {
+        switch (variant) {
+            case ARMORED: return "enemy_armored.png";
+            case BERSERKER: return "enemy_berserker.png";
+            case PHANTOM: return "enemy_phantom.png";
+            case PLAGUEBEARER: return "enemy_plaguebearer.png";
+            case MENDER: return "enemy_mender.png";
+            case PYROMANCER: return "enemy_pyromancer.png";
+            case CRYOMANCER: return "enemy_cryomancer.png";
+            case NECROMANCER: return "enemy_necromancer.png";
+            case STRIKER: return "enemy_striker.png";
+            case SUMMONER: return "enemy_summoner.png";
+            default: break;
+        }
 
         switch (type) {
 
