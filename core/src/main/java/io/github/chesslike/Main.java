@@ -1528,26 +1528,21 @@ public class Main extends Game {
     private void positionCards() {
         if (hand == null || hand.size == 0) return;
 
-        float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
         float scale = currentCardScale();
         float cw = 115f * scale;
         float ch = 155f * scale;
 
-        // Fanned physical hand: overlapping cards follow a shallow arc, with
-        // the middle cards lifted toward the focal point. Keep the hand centered.
-        float step = cw * (hand.size >= 5 ? 0.64f : 0.68f);
-        float total = cw + Math.max(0, hand.size - 1) * step;
-        float startX = Math.max(4f, (w - total) / 2f);
-        float baseY = Math.max(2f, Math.min(12f, h * 0.018f));
-        float arcHeight = Math.min(13f, ch * 0.085f);
+        // Larger vertical fan on the left side, leaving the board visible.
+        // Later cards sit slightly higher and closer to the board.
+        float stepY = ch * 0.55f;
+        float totalH = ch + Math.max(0, hand.size - 1) * stepY;
+        float startY = Math.max(8f, (h - totalH) / 2f);
 
         for (int i = 0; i < hand.size; i++) {
             Card c = hand.get(i);
-            float t = hand.size <= 1 ? 0.5f : i / (float) (hand.size - 1);
-            float arc = (float) Math.sin(t * Math.PI) * arcHeight;
             c.setLayoutScale(scale);
-            c.setPosition(startX + i * step, baseY + arc);
+            c.setPosition(10f + i * 7f, startY + i * stepY);
         }
     }
 
@@ -3118,12 +3113,13 @@ public class Main extends Game {
 
     // Same scale maths as positionCards(), so the dragged card is centred on the pointer
     private float currentCardScale() {
-        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        float h = Gdx.graphics.getHeight();
         int n = Math.max(1, hand.size);
-        float requiredWidth = 115f + (n - 1) * (115f * 0.58f);
-        float widthScale = (w - 24f) / requiredWidth;
-        float heightScale = (h * 0.52f - 12f) / 155f;
-        return MathUtils.clamp(Math.min(0.82f, Math.min(widthScale, heightScale)), 0.42f, 0.82f);
+        float sideSpace = Player.getBoardX() - 16f;
+        float widthScale = sideSpace / 115f;
+        float requiredHeight = 155f * (1f + (n - 1) * 0.55f);
+        float heightScale = (h - 32f) / requiredHeight;
+        return MathUtils.clamp(Math.min(1.05f, Math.min(widthScale, heightScale)), 0.55f, 1.05f);
     }
 
     private void selectCardFromTap(Card c) {
@@ -4941,8 +4937,31 @@ public class Main extends Game {
                     break;
                 }
             }
-            if (tapped != null) clickSound.play();
-            tooltipEnemy = (tapped != null && tapped != tooltipEnemy) ? tapped : null; // tap again or tap elsewhere to close
+            if (tapped != null) {
+                clickSound.play();
+                tooltipEnemy = tapped != tooltipEnemy ? tapped : null; // tap again to close
+                return;
+            }
+            // With no card selected, tapping the king cycles the hand so players
+            // can browse cards without reaching for the side fan.
+            if (player.isClicked(touchX, touchY) && hand.size > 0) {
+                clickSound.play();
+                int next = 0;
+                if (activeCard != null) {
+                    int current = hand.indexOf(activeCard, true);
+                    next = current < 0 ? 0 : (current + 1) % hand.size;
+                    activeCard.setSelected(false);
+                } else {
+                    next = 0;
+                }
+                activeCard = hand.get(next);
+                activeCard.setSelected(true);
+                player.setSelected(false);
+                message(activeCard.getName() + " selected", 1.5f);
+                tooltipEnemy = null;
+                return;
+            }
+            tooltipEnemy = null; // tap elsewhere to close
             return;
         }
         if (activeCard.isClicked(touchX, touchY)) {
