@@ -6797,15 +6797,19 @@ public class Main extends Game {
         float x = 18f;
         float objectiveH = omen == OMEN_NONE ? 92f : 132f;
         float objectiveY = screenH - 150f - objectiveH;
-        // Place it below the objective panel, not at a fixed coordinate that can overlap it.
-        float y = objectiveY - 48f;
+        // Keep the corruption strip directly beneath the objective panel and inside
+        // the visible play area even on short laptop/mobile windows.
+        float panelH = 42f;
+        float y = MathUtils.clamp(objectiveY - 28f, panelH + 8f, screenH - 12f);
         float barH = 10f;
-        float p = corruption.getProgress();
+        float p = MathUtils.clamp(corruption.getProgress(), 0f, 1f);
 
         // Corruption lives directly below the objective panel as one quiet status strip.
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(.055f, .04f, .08f, .88f);
-        shapeRenderer.rect(x, y - 22f, w, 42f);
+        shapeRenderer.setColor(.055f, .04f, .08f, .94f);
+        shapeRenderer.rect(x, y - panelH / 2f, w, panelH);
+        shapeRenderer.setColor(.42f, .18f, .52f, 1f);
+        shapeRenderer.rect(x, y + panelH / 2f - 2f, w, 2f);
         shapeRenderer.setColor(.10f, .07f, .14f, .95f);
         shapeRenderer.rect(x + 8f, y - 7f, w - 16f, barH);
         shapeRenderer.setColor(.72f, .20f, .92f, 1f);
@@ -6817,7 +6821,7 @@ public class Main extends Game {
         font.setColor(new Color(.82f, .42f, 1f, 1f));
         font.draw(batch, "CORRUPTION  " + corruption.getLevel() + "%", x + 8f, y + 12f);
         font.getData().setScale(.31f);
-        font.setColor(new Color(.70f, .70f, .78f, 1f));
+        font.setColor(new Color(.82f, .80f, .90f, 1f));
         font.draw(batch, corruption.getStatusText(), x + 8f, y - 14f);
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
