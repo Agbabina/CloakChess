@@ -3126,6 +3126,7 @@ public class Main extends Game {
     private void selectCardFromTap(Card c) {
         clickSound.play();
         activeCard = c;
+        kingCardCycleIndex = hand.indexOf(c, true);
         c.setSelected(true);
         player.setSelected(true);
         message(c.getName() + " selected — tap a destination", 1.5f);
