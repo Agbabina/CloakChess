@@ -181,6 +181,7 @@ public class Main extends Game {
             "Pick a card, tap your piece, tap a tile.",
             "Gold intent arrows reveal each enemy's next tile.",
             "Enemy movement is deterministic: plan a trap, then execute.",
+            "TACTICAL MARK: bait the nearest enemy onto a tile once per room.",
             "Tap an enemy to see its info."
         },
         {},
@@ -545,6 +546,12 @@ public class Main extends Game {
     private final KingEnchantmentSystem kingEnchantments = new KingEnchantmentSystem();
     private KingEnchantmentScreen kingEnchantmentScreen;
     private final Rectangle enchantmentsButton = new Rectangle();
+    private final Rectangle tacticalMarkButton = new Rectangle();
+    private boolean placingTacticalMark = false;
+    private boolean tacticalMarkAvailable = true;
+    private boolean tacticalMarkArmed = false;
+    private int tacticalMarkX = -1, tacticalMarkY = -1;
+    private Enemy tacticalMarkTarget = null;
     private int difficulty = 1;
     private int enemyTurnCounter = 0;
     private final Corruption corruption = new Corruption();
@@ -4389,6 +4396,7 @@ public class Main extends Game {
         corruption.reset();
         kingEnchantments.resetRun();
         kingEnchantmentScreen.hide();
+        resetTacticalMark();
 
         if (blitzMode) {
             blitzManager.start();
@@ -4942,6 +4950,21 @@ public class Main extends Game {
         layoutEnchantmentButton();
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
+            layoutTacticalMarkButton();
+            if (!blitzMode && tacticalMarkButton.contains(ux, uy)) {
+                if (!tacticalMarkAvailable) {
+                    playSfx(errorSound);
+                    message("Tactical Mark is spent until the next room.", 1.6f);
+                } else {
+                    placingTacticalMark = !placingTacticalMark;
+                    activeCard = null;
+                    selectedSpell = null;
+                    player.setSelected(false);
+                    message(placingTacticalMark ? "TACTICAL MARK: tap an empty tile to lure the nearest enemy." : "Tactical Mark cancelled.", 2f);
+                }
+                clickSound.play();
+                return;
+            }
             if (!blitzMode && enchantmentsButton.contains(ux, uy)) {
                 clickSound.play();
                 kingEnchantmentScreen.show();
@@ -5028,6 +5051,34 @@ public class Main extends Game {
         if (!Gdx.input.justTouched()) return;
 
         float touchX = Gdx.input.getX(), touchY = Gdx.graphics.getHeight() - Gdx.input.getY();
+        if (placingTacticalMark) {
+            int markX = (int) ((touchX - Player.getBoardX()) / Player.TILE_SIZE);
+            int markY = (int) ((touchY - Player.getBoardY()) / Player.TILE_SIZE);
+            if (markX < 0 || markX >= Player.BOARD_SIZE || markY < 0 || markY >= Player.BOARD_SIZE) {
+                message("Choose a tile on the board.", 1.2f);
+                return;
+            }
+            if ((markX == player.getX() && markY == player.getY()) || getEnemyAt(markX, markY, null) != null) {
+                message("Mark an empty tile, not a piece's square.", 1.5f);
+                return;
+            }
+            Enemy target = nearestEnemyTo(player.getX(), player.getY());
+            if (target == null) {
+                placingTacticalMark = false;
+                message("No enemy left to lure.", 1.5f);
+                return;
+            }
+            tacticalMarkX = markX;
+            tacticalMarkY = markY;
+            tacticalMarkTarget = target;
+            tacticalMarkArmed = true;
+            tacticalMarkAvailable = false;
+            placingTacticalMark = false;
+            spawnBurst(tileCenterX(markX), tileCenterY(markY), 14, 1f, .68f, .22f, 28f);
+            message("MARK SET: " + target.getDisplayName() + " will chase that tile next turn.", 2.2f);
+            autosave();
+            return;
+        }
         if (activeCard == null) {
             boolean hitCard = false;
             for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
@@ -5869,7 +5920,9 @@ public class Main extends Game {
         }
 
         activeEnemyStepsRemaining--;
-        enemyTurnMoveInFlight = e.moveTowards(player.getX(), player.getY());
+        int chaseX = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkX : player.getX();
+        int chaseY = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkY : player.getY();
+        enemyTurnMoveInFlight = e.moveTowards(chaseX, chaseY);
         if (!enemyTurnMoveInFlight) finishActiveEnemy();
     }
 
@@ -5927,6 +5980,12 @@ public class Main extends Game {
 
     private void finishActiveEnemy() {
         Enemy finished = activeTurnEnemy;
+        if (finished == tacticalMarkTarget) {
+            tacticalMarkArmed = false;
+            tacticalMarkTarget = null;
+            tacticalMarkX = tacticalMarkY = -1;
+            message("TACTICAL MARK CONSUMED.", 1.4f);
+        }
         if (finished != null && finished.isAlive() && !enemyCapturedPlayer(finished)) {
             applyEnemyArchetypeAttack(finished);
         }
@@ -5948,6 +6007,11 @@ public class Main extends Game {
         activeEnemyStepsRemaining = 0;
         enemyTurnQueue.clear();
         enemyTurnQueueIndex = 0;
+        if (tacticalMarkTarget != null && !tacticalMarkTarget.isAlive()) {
+            tacticalMarkArmed = false;
+            tacticalMarkTarget = null;
+            tacticalMarkX = tacticalMarkY = -1;
+        }
         if (!gameOverScreen.isVisible() && !rewardScreen.isVisible() && allEnemiesDefeated()) winRoom();
     }
 
@@ -6268,6 +6332,7 @@ public class Main extends Game {
 
     private void generateNextRoom() {
         difficulty++;
+        resetTacticalMark();
         kingEnchantments.beginRoom();
         if (kingEnchantments.has(KingEnchantmentSystem.Enchantment.WARDING_SIGIL))
             defense = Math.min(MAX_DEFENSE, defense + 1);
@@ -6620,6 +6685,7 @@ public class Main extends Game {
         player.setCorruption(corruption);
         kingEnchantments.resetRun();
         kingEnchantmentScreen.hide();
+        resetTacticalMark();
         resetPlayerStats();
         buildStartingHand();
         if (enemies != null) for (int i = 0; i < enemies.size; i++) enemies.get(i).dispose();
@@ -7028,6 +7094,42 @@ public class Main extends Game {
         popupColor.set(r, g, b, 1f);
     }
 
+    private void resetTacticalMark() {
+        placingTacticalMark = false;
+        tacticalMarkAvailable = true;
+        tacticalMarkArmed = false;
+        tacticalMarkX = tacticalMarkY = -1;
+        tacticalMarkTarget = null;
+    }
+
+    private void layoutTacticalMarkButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        tacticalMarkButton.set(Math.max(10f, w - 194f), Math.max(10f, h - 178f), 176f, 38f);
+    }
+
+    private void renderTacticalMarkButton() {
+        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+            || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        layoutTacticalMarkButton();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(placingTacticalMark ? .30f : .055f, placingTacticalMark ? .22f : .065f,
+            placingTacticalMark ? .08f : .10f, .96f);
+        shapeRenderer.rect(tacticalMarkButton.x, tacticalMarkButton.y, tacticalMarkButton.width, tacticalMarkButton.height);
+        shapeRenderer.setColor(tacticalMarkAvailable ? 1f : .35f, tacticalMarkAvailable ? .68f : .35f,
+            tacticalMarkAvailable ? .22f : .38f, 1f);
+        shapeRenderer.rect(tacticalMarkButton.x, tacticalMarkButton.y + tacticalMarkButton.height - 3f,
+            tacticalMarkButton.width, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.46f);
+        font.setColor(tacticalMarkAvailable ? new Color(1f, .78f, .38f, 1f) : Color.GRAY);
+        String label = placingTacticalMark ? "SELECT A TILE..." : tacticalMarkAvailable ? "TACTICAL MARK  [1]" : "MARK SPENT";
+        font.draw(batch, label, tacticalMarkButton.x + 10f, tacticalMarkButton.y + 24f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
     private void layoutEnchantmentButton() {
         float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
         enchantmentsButton.set(Math.max(10f, w - 194f), Math.max(10f, h - 132f), 176f, 38f);
@@ -7082,7 +7184,9 @@ public class Main extends Game {
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
             if (!e.isAlive() || e.isFalling() || e.isMoving()) continue;
-            int[] target = e.previewMoveTowards(player.getX(), player.getY());
+            int aimX = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkX : player.getX();
+            int aimY = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkY : player.getY();
+            int[] target = e.previewMoveTowards(aimX, aimY);
             if (target == null) continue;
             float sx = tileCenterX(e.getX()), sy = tileCenterY(e.getY());
             float tx = tileCenterX(target[0]), ty = tileCenterY(target[1]);
@@ -7092,11 +7196,16 @@ public class Main extends Game {
             shapeRenderer.setColor(1f, .88f, .48f, .9f);
             shapeRenderer.circle(tx, ty, Player.TILE_SIZE * .07f, 18);
         }
+        if (tacticalMarkArmed) {
+            shapeRenderer.setColor(1f, .72f, .22f, .9f);
+            shapeRenderer.circle(tileCenterX(tacticalMarkX), tileCenterY(tacticalMarkY),
+                Player.TILE_SIZE * .34f, 28);
+        }
         shapeRenderer.end();
         batch.begin();
         font.getData().setScale(.34f);
         font.setColor(1f, .78f, .35f, .9f);
-        font.draw(batch, "GOLD = ENEMY'S NEXT MOVE", Gdx.graphics.getWidth() * .5f - 90f,
+        font.draw(batch, placingTacticalMark ? "TACTICAL MARK: CHOOSE AN EMPTY TILE" : "GOLD = ENEMY'S NEXT MOVE", Gdx.graphics.getWidth() * .5f - 90f,
             Gdx.graphics.getHeight() - 18f);
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
@@ -7305,6 +7414,7 @@ public class Main extends Game {
         renderTooltip();
         renderCorruptionHud();
         renderEnchantmentButton();
+        renderTacticalMarkButton();
         kingEnchantmentScreen.render(batch, shapeRenderer, font, kingEnchantments);
         rewardScreen.render(hand);
         if (shopScreen.isVisible()) shopScreen.render(gold);
