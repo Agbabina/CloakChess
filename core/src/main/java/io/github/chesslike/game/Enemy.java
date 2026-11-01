@@ -307,8 +307,8 @@ public class Enemy {
 
         updateAnimation();
 
-        float pieceSize = Player.tileSize() * 0.90f;
-        float offset = (Player.tileSize() - pieceSize) / 2f;
+        float pieceSize = Player.getTileSize() * 0.90f;
+        float offset = (Player.getTileSize() - pieceSize) / 2f;
 
         switch (variant) {
             case ARMORED: batch.setColor(.72f, .80f, .92f, 1f); break;
