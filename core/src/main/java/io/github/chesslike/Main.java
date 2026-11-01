@@ -159,6 +159,13 @@ public class Main extends Game {
     private final boolean[] evtEnabled = new boolean[3];
     private final Rectangle[] evtRects = {new Rectangle(), new Rectangle(), new Rectangle()};
     private final Array<Enemy> pendingArrivals = new Array<>();
+    // Enemy actions are queued so each piece finishes its move before the next one starts.
+    private final Array<Enemy> enemyTurnQueue = new Array<>();
+    private int enemyTurnQueueIndex = 0;
+    private Enemy activeTurnEnemy = null;
+    private int activeEnemyStepsRemaining = 0;
+    private boolean enemyTurnActive = false;
+    private boolean enemyTurnMoveInFlight = false;
     private static final Color COL_BURN = new Color(1f, .35f, .12f, 1f);
     // ---------- Tutorial ----------
     // ---------- Tutorial ----------
@@ -1403,6 +1410,12 @@ public class Main extends Game {
         startRoomObjective();
         tooltipEnemy = null;
         pendingArrivals.clear();
+        enemyTurnQueue.clear();
+        enemyTurnQueueIndex = 0;
+        activeTurnEnemy = null;
+        activeEnemyStepsRemaining = 0;
+        enemyTurnActive = false;
+        enemyTurnMoveInFlight = false;
         enemyCurses.clear();
         captureCurses.clear();
         stunnedTurns.clear();
@@ -4800,7 +4813,8 @@ public class Main extends Game {
             rewardScreen.handleClick(x, y, hand);
             return;
         }
-        if (arrowInFlight || anyEnemyFalling() || moveAnimActive || pendingArrivals.size > 0 || anyEnemyMoving())
+        if (arrowInFlight || anyEnemyFalling() || moveAnimActive || enemyTurnActive
+            || pendingArrivals.size > 0 || anyEnemyMoving())
             return;
 
         if (rewardScreen.hasGrantedNewCard()) {
@@ -5041,6 +5055,12 @@ public class Main extends Game {
 
     private void clearMoveAnim() {
         pendingArrivals.clear();
+        enemyTurnQueue.clear();
+        enemyTurnQueueIndex = 0;
+        activeTurnEnemy = null;
+        activeEnemyStepsRemaining = 0;
+        enemyTurnActive = false;
+        enemyTurnMoveInFlight = false;
         moveAnimActive = false;
         moveAnimCard = null;
         moveAnimT = 0f;
@@ -5675,6 +5695,8 @@ public class Main extends Game {
     }
 
     private void moveEnemies() {
+        if (enemyTurnActive) return;
+
         shiftCards();
         enemyTurnCounter++;
         applyEnemyStatuses();
@@ -5694,6 +5716,12 @@ public class Main extends Game {
             if (invisibleTurns == 0) message("Cloak faded...", 1.2f);
         }
 
+        enemyTurnQueue.clear();
+        enemyTurnQueueIndex = 0;
+        activeTurnEnemy = null;
+        activeEnemyStepsRemaining = 0;
+        enemyTurnMoveInFlight = false;
+
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
             if (!e.isAlive()) continue;
@@ -5705,24 +5733,118 @@ public class Main extends Game {
                 else stunnedTurns.put(e, stun - 1);
                 continue;
             }
-            int startX = e.getX(), startY = e.getY();
-            int moves = enemyMoveCount(e);
+            enemyTurnQueue.add(e);
+        }
 
-            for (int step = 0; step < moves; step++) {
+        enemyTurnActive = enemyTurnQueue.size > 0;
+        if (enemyTurnActive) startNextEnemyInSequence();
+        else finishEnemyTurnSequence();
+    }
 
-                e.moveTowards(player.getX(), player.getY());
+    /** Starts the next living enemy, preserving the original roster order. */
+    private void startNextEnemyInSequence() {
+        activeTurnEnemy = null;
+        while (enemyTurnQueueIndex < enemyTurnQueue.size) {
+            Enemy candidate = enemyTurnQueue.get(enemyTurnQueueIndex++);
+            if (!candidate.isAlive() || candidate.isFalling()) continue;
+            activeTurnEnemy = candidate;
+            activeEnemyStepsRemaining = enemyMoveCount(candidate);
+            startNextEnemyMove();
+            return;
+        }
+        finishEnemyTurnSequence();
+    }
 
-                boolean moved = e.getX() != startX || e.getY() != startY;
+    /** Only one enemy movement may be in flight at a time. */
+    private void startNextEnemyMove() {
+        Enemy e = activeTurnEnemy;
+        if (!enemyTurnActive || e == null || !e.isAlive()
+            || activeEnemyStepsRemaining <= 0 || enemyCapturedPlayer(e)) {
+            finishActiveEnemy();
+            return;
+        }
 
-                if (!moved) break;
+        activeEnemyStepsRemaining--;
+        enemyTurnMoveInFlight = e.moveTowards(player.getX(), player.getY());
+        if (!enemyTurnMoveInFlight) finishActiveEnemy();
+    }
 
-                if (enemyCapturedPlayer(e) || board.isPoisoned(e.getX(), e.getY())) {
-                    pendingArrivals.add(e);
-                    break;
+    /** Called once per frame; Enemy.render advances the active sprite animation. */
+    private void updateEnemyTurnSequence() {
+        if (!enemyTurnActive || !enemyTurnMoveInFlight || activeTurnEnemy == null) return;
+        if (activeTurnEnemy.isMoving()) return;
+
+        enemyTurnMoveInFlight = false;
+        Enemy e = activeTurnEnemy;
+        if (!e.isAlive()) {
+            finishActiveEnemy();
+            return;
+        }
+
+        // Resolve tile effects and contact damage after the piece visibly arrives.
+        boolean steppedOnPoison = board.isPoisoned(e.getX(), e.getY());
+        if (steppedOnPoison) {
+            playSfx(poisonSound);
+            damageEnemy(e, 1, .45f, .95f, .3f);
+            message("Enemy poisoned!", 1.2f);
+            if (e.isAlive()) {
+                Integer cur = poisonTurns.get(e);
+                poisonTurns.put(e, Math.min(POISON_MAX_TURNS, (cur == null ? 0 : cur) + 2));
+                spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 8, .45f, .95f, .3f, 40f);
+            }
+        }
+
+        if (e.isAlive() && enemyCapturedPlayer(e)) {
+            EnemyCurse curse = enemyCurses.get(e);
+            if (curse == EnemyCurse.VENGEFUL) {
+                damagePlayer(1);
+                message("Vengeful! Extra damage!", 1.5f);
+                if (gameOverScreen.isVisible()) {
+                    finishEnemyTurnSequence();
+                    return;
                 }
             }
-            if (e.isAlive() && !enemyCapturedPlayer(e)) applyEnemyArchetypeAttack(e);
+            int hit = difficulty >= (runPact[1] ? 4 : 8) ? 2 : 1;
+            damagePlayer(hit);
+            message("Enemy hit you! (-" + hit + ")", 1.5f);
+            finishActiveEnemy();
+            return;
         }
+
+        // A poison pool ends this enemy's movement, just as it did before sequencing.
+        if (steppedOnPoison) {
+            finishActiveEnemy();
+            return;
+        }
+
+        if (e.isAlive() && activeEnemyStepsRemaining > 0) startNextEnemyMove();
+        else finishActiveEnemy();
+    }
+
+    private void finishActiveEnemy() {
+        Enemy finished = activeTurnEnemy;
+        if (finished != null && finished.isAlive() && !enemyCapturedPlayer(finished)) {
+            applyEnemyArchetypeAttack(finished);
+        }
+        activeTurnEnemy = null;
+        activeEnemyStepsRemaining = 0;
+        enemyTurnMoveInFlight = false;
+
+        if (gameOverScreen.isVisible()) {
+            finishEnemyTurnSequence();
+            return;
+        }
+        startNextEnemyInSequence();
+    }
+
+    private void finishEnemyTurnSequence() {
+        enemyTurnActive = false;
+        enemyTurnMoveInFlight = false;
+        activeTurnEnemy = null;
+        activeEnemyStepsRemaining = 0;
+        enemyTurnQueue.clear();
+        enemyTurnQueueIndex = 0;
+        if (!gameOverScreen.isVisible() && !rewardScreen.isVisible() && allEnemiesDefeated()) winRoom();
     }
 
     private void applyEnemyArchetypeAttack(Enemy e) {
@@ -6915,6 +7037,7 @@ public class Main extends Game {
         updateArrowAnimation(delta);
         updateMoveAnim(delta);
         updatePendingArrivals();
+        updateEnemyTurnSequence();
         updateShockwaves(delta);
         updateDebris(delta);
         updateSpellFx(delta);
