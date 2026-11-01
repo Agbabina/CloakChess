@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +36,7 @@ public class Enemy {
     private EnemyCurse curse = null;
 
     // MOVE / PUSH ANIMATION
-    private static final float MOVE_DURATION = 0.22f;
+    private static final float MOVE_DURATION = 0.32f;
     private static final float PUSH_DURATION = 0.15f;
 
     private boolean moving = false;
@@ -51,6 +52,14 @@ public class Enemy {
 
     private float moveTimer = 0f;
     private float activeDuration = MOVE_DURATION;
+    private float moveArcOffset = 0f;
+    private float moveRotation = 0f;
+
+    public enum DeathAnimationType { FADE, SHATTER, BURN, SOUL, IMPLODE }
+    private boolean dying = false;
+    private float deathTimer = 0f;
+    private DeathAnimationType deathAnimationType = DeathAnimationType.FADE;
+    private static final float DEATH_DURATION = .62f;
 
     // A pushed enemy loses its next move (turn logic, not animation state)
     private boolean skipNextMove = false;
@@ -295,7 +304,9 @@ public class Enemy {
 
     // RENDER
     public void render(SpriteBatch batch) {
-        if (!alive) {
+        if (!alive && !dying) return;
+        if (dying) {
+            renderDeathAnimation(batch);
             return;
         }
 
@@ -321,9 +332,20 @@ public class Enemy {
         batch.draw(
             texture,
             renderX + offset,
-            renderY + offset + getFallOffset(),
+            renderY + offset + getFallOffset() + moveArcOffset,
+            pieceSize / 2f,
+            pieceSize / 2f,
             pieceSize,
-            pieceSize
+            pieceSize,
+            1f,
+            1f,
+            moveRotation,
+            0,
+            0,
+            texture.getWidth(),
+            texture.getHeight(),
+            false,
+            false
         );
         batch.setColor(1f, 1f, 1f, 1f);
     }
@@ -431,7 +453,7 @@ public class Enemy {
 
         moveTimer += Gdx.graphics.getDeltaTime();
 
-        float progress = moveTimer / activeDuration;
+        float progress = MathUtils.clamp(moveTimer / activeDuration, 0f, 1f);
 
         if (progress >= 1f) {
             progress = 1f;
@@ -439,16 +461,19 @@ public class Enemy {
 
             renderX = targetX;
             renderY = targetY;
+            moveArcOffset = 0f;
+            moveRotation = 0f;
 
             return;
         }
 
-        // Match the player's restrained ease-out slide; enemies never scale or bounce.
-        float inv = 1f - progress;
-        float eased = 1f - inv * inv * inv;
-
+        // Smoothstep movement with a restrained hop and tiny directional lean.
+        float eased = progress * progress * (3f - 2f * progress);
+        float hop = MathUtils.sin(progress * MathUtils.PI) * tileSize() * .13f;
         renderX = startX + (targetX - startX) * eased;
         renderY = startY + (targetY - startY) * eased;
+        moveArcOffset = hop;
+        moveRotation = MathUtils.sin(progress * MathUtils.PI) * (targetX >= startX ? 1f : -1f) * 5f;
     }
 
     // CLICK
@@ -530,6 +555,11 @@ public class Enemy {
 
         if (health == 0) {
             alive = false;
+            dying = true;
+            deathTimer = 0f;
+            moving = false;
+            moveArcOffset = 0f;
+            moveRotation = 0f;
             return true;
         }
 
@@ -539,6 +569,63 @@ public class Enemy {
     public void kill() {
         health = 0;
         alive = false;
+        dying = true;
+        deathTimer = 0f;
+        moving = false;
+    }
+
+    public void setDeathAnimationType(DeathAnimationType type) {
+        deathAnimationType = type == null ? DeathAnimationType.FADE : type;
+    }
+
+    private void renderDeathAnimation(SpriteBatch batch) {
+        deathTimer += Gdx.graphics.getDeltaTime();
+        float t = MathUtils.clamp(deathTimer / DEATH_DURATION, 0f, 1f);
+        if (t >= 1f) {
+            dying = false;
+            return;
+        }
+
+        float alpha = 1f - t;
+        float scale = 1f;
+        float rise = 0f;
+        float rotation = 0f;
+        float red = 1f, green = 1f, blue = 1f;
+        switch (deathAnimationType) {
+            case SHATTER:
+                scale = 1f - t * .22f;
+                rotation = t * 85f;
+                red = .86f; green = .82f; blue = .72f;
+                break;
+            case BURN:
+                scale = 1f - t * .28f;
+                red = 1f; green = .38f + .25f * (1f - t); blue = .10f;
+                rise = t * tileSize() * .42f;
+                break;
+            case SOUL:
+                scale = 1f - t * .18f;
+                red = .55f; green = .88f; blue = 1f;
+                rise = t * tileSize() * .8f;
+                break;
+            case IMPLODE:
+                scale = Math.max(.02f, 1f - t);
+                rotation = -t * 220f;
+                red = .72f; green = .55f; blue = 1f;
+                break;
+            case FADE:
+            default:
+                scale = 1f - t * .08f;
+                break;
+        }
+
+        float size = tileSize() * .90f;
+        float xPos = renderX + (tileSize() - size) / 2f;
+        float yPos = renderY + (tileSize() - size) / 2f + rise;
+        batch.setColor(red, green, blue, alpha);
+        batch.draw(texture, xPos, yPos, size / 2f, size / 2f,
+            size, size, scale, scale, rotation,
+            0, 0, texture.getWidth(), texture.getHeight(), false, false);
+        batch.setColor(1f, 1f, 1f, 1f);
     }
 
     // BOARD POSITION
