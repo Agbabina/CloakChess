@@ -615,13 +615,15 @@ public class RewardScreen {
 
         augmentButtons.clear();
 
-        float buttonWidth = 190f;
-        float buttonHeight = 150f;
-        float gap = 20f;
+        float gap = Math.min(20f, panelWidth * 0.025f);
+        float buttonWidth = Math.min(190f,
+            (panelWidth - 64f - gap * Math.max(0, augmentChoices.size - 1))
+                / Math.max(1, augmentChoices.size));
+        float buttonHeight = Math.min(170f, panelHeight * 0.38f);
 
         float totalWidth =
             buttonWidth * augmentChoices.size +
-                gap * (augmentChoices.size - 1);
+                gap * Math.max(0, augmentChoices.size - 1);
 
         float startX =
             panelX +
@@ -655,7 +657,7 @@ public class RewardScreen {
 
         font.draw(
             batch,
-            "CHOOSE AN AUGMENT",
+            "FINAL STEP  /  CHOOSE YOUR CARD UPGRADE",
             panelX + 30f,
             panelY + panelHeight - 35f
         );
@@ -674,7 +676,7 @@ public class RewardScreen {
         font.draw(
             batch,
             selectedCard.getName() +
-                " will receive one of these",
+                " is selected. Choose one upgrade to continue.",
             panelX + 30f,
             panelY + panelHeight - 70f
         );
