@@ -191,6 +191,9 @@ public class Main extends Game {
             "Mad Rooks cycle straight / straight / diagonal; Jesters follow a fixed pattern.",
             "TACTICAL MARK: bait the nearest enemy onto a tile once per room.",
             "ROYAL GUARD: brace once per room; the first adjacent enemy is stunned.",
+            "CHECK: threaten an enemy with your card movement to stun it.",
+            "KNIGHT FORK: a Knight landing that attacks 2 enemies stuns both.",
+            "SKEWER: Rook/Bishop/Queen lines pierce a second enemy behind the first.",
             "Tap an enemy to see its info."
         },
         {},
@@ -5273,6 +5276,7 @@ public class Main extends Game {
         captureCard = played;
         boolean captured = checkPlayerCapture();
         captureCard = null;
+        applyChessTactics(played);
         if (captured) {
             startShake(0.30f, 10f);
             playSfx(smashSound);
@@ -5375,6 +5379,80 @@ public class Main extends Game {
         }
         player.setSelected(false);
         message(selectedSpell.getLabel() + ": tap an enemy", 1.5f);
+    }
+
+    /** Resolve tactical effects from the chess geometry of the card just played. */
+    private void applyChessTactics(Card played) {
+        if (played == null || gameOverScreen.isVisible()) return;
+        Card.MovementType form = played.getCurrentForm();
+        int px = player.getX(), py = player.getY();
+
+        // CHECK: the nearest enemy inside this card's movement pattern loses its next action.
+        Enemy checkedEnemy = null;
+        int checkedDistance = Integer.MAX_VALUE;
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if (!e.isAlive() || e.isFalling()) continue;
+            int dx = Math.abs(e.getX() - px), dy = Math.abs(e.getY() - py);
+            if (dx == 0 && dy == 0) continue;
+            if (!played.getMovementRules().isValidMove(px, py, e.getX(), e.getY(), Player.BOARD_SIZE)) continue;
+            int distance = dx * dx + dy * dy;
+            if (distance < checkedDistance) { checkedDistance = distance; checkedEnemy = e; }
+        }
+        if (checkedEnemy != null) {
+            stunnedTurns.put(checkedEnemy, Math.max(1, stunnedTurns.get(checkedEnemy, 0)));
+            spawnFloat("CHECK!", tileCenterX(checkedEnemy.getX()), tileCenterY(checkedEnemy.getY()) + 38f, .55f, .85f, 1f);
+            spawnBurst(tileCenterX(checkedEnemy.getX()), tileCenterY(checkedEnemy.getY()), 9, .45f, .8f, 1f, 28f);
+        }
+
+        // KNIGHT'S FORK: a Knight landing that attacks two enemies stuns the pair.
+        if (form == Card.MovementType.KNIGHT) {
+            Array<Enemy> forked = new Array<>();
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy e = enemies.get(i);
+                if (!e.isAlive() || e.isFalling()) continue;
+                int dx = Math.abs(e.getX() - px), dy = Math.abs(e.getY() - py);
+                if ((dx == 1 && dy == 2) || (dx == 2 && dy == 1)) forked.add(e);
+            }
+            if (forked.size >= 2) {
+                for (int i = 0; i < 2; i++) {
+                    Enemy e = forked.get(i);
+                    stunnedTurns.put(e, Math.max(1, stunnedTurns.get(e, 0)));
+                    spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 7, .35f, .75f, 1f, 24f);
+                }
+                showPopup("KNIGHT FORK!", .35f, .75f, 1f, .9f);
+                playSfx(blessingSound);
+            }
+        }
+
+        // SKEWER: a slider pierces the first enemy and hits a second enemy behind it.
+        if (form == Card.MovementType.ROOK || form == Card.MovementType.BISHOP || form == Card.MovementType.QUEEN) {
+            int[][] directions = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}};
+            for (int[] direction : directions) {
+                int dx = direction[0], dy = direction[1];
+                boolean diagonal = dx != 0 && dy != 0;
+                if (form == Card.MovementType.ROOK && diagonal) continue;
+                if (form == Card.MovementType.BISHOP && !diagonal) continue;
+                Enemy first = null, second = null;
+                int firstStep = Integer.MAX_VALUE, secondStep = Integer.MAX_VALUE;
+                for (int i = 0; i < enemies.size; i++) {
+                    Enemy e = enemies.get(i);
+                    if (!e.isAlive() || e.isFalling()) continue;
+                    int ex = e.getX() - px, ey = e.getY() - py;
+                    if (dx == 0 ? ex != 0 : ex * dy != ey * dx) continue;
+                    int steps = dx != 0 ? ex / dx : ey / dy;
+                    if (steps <= 0) continue;
+                    if (steps < firstStep) { second = first; secondStep = firstStep; first = e; firstStep = steps; }
+                    else if (steps < secondStep) { second = e; secondStep = steps; }
+                }
+                if (first != null && second != null) {
+                    damageEnemy(second, 1, .45f, .75f, 1f);
+                    spawnFloat("SKEWER", tileCenterX(second.getX()), tileCenterY(second.getY()) + 34f, .45f, .75f, 1f);
+                    showPopup("LINE SKEWER!", .45f, .75f, 1f, .8f);
+                    break;
+                }
+            }
+        }
     }
 
     private void startFrenzy() {
