@@ -173,6 +173,7 @@ public class Main extends Game {
     private int activeEnemyStepsRemaining = 0;
     private boolean enemyTurnActive = false;
     private boolean enemyTurnMoveInFlight = false;
+    private float enemyIntentDelay = 0f;
     private static final Color COL_BURN = new Color(1f, .35f, .12f, 1f);
     // ---------- Tutorial ----------
     // ---------- Tutorial ----------
@@ -5805,6 +5806,12 @@ public class Main extends Game {
             }
         }
 
+        Enemy survivingDefender = getEnemyAt(player.getX(), player.getY(), null);
+        if (survivingDefender != null && !gameOverScreen.isVisible()) {
+            damagePlayer(1);
+            message("The enemy survived your capture and counterattacked!", 1.7f);
+            if (!gameOverScreen.isVisible()) retreatPlayerAfterHit(survivingDefender);
+        }
         return capturedAny;
     }
     /**
@@ -6002,6 +6009,7 @@ public class Main extends Game {
         activeTurnEnemy = null;
         activeEnemyStepsRemaining = 0;
         enemyTurnMoveInFlight = false;
+        enemyIntentDelay = 0f;
 
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
@@ -6018,7 +6026,7 @@ public class Main extends Game {
         }
 
         enemyTurnActive = enemyTurnQueue.size > 0;
-        if (enemyTurnActive) startNextEnemyInSequence();
+        if (enemyTurnActive) enemyIntentDelay = .48f;
         else finishEnemyTurnSequence();
     }
 
@@ -6048,13 +6056,19 @@ public class Main extends Game {
         activeEnemyStepsRemaining--;
         int chaseX = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkX : player.getX();
         int chaseY = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkY : player.getY();
-        enemyTurnMoveInFlight = e.moveTowards(chaseX, chaseY);
+        enemyTurnMoveInFlight = e.moveTowards(chaseX, chaseY, enemies);
         if (!enemyTurnMoveInFlight) finishActiveEnemy();
     }
 
     /** Called once per frame; Enemy.render advances the active sprite animation. */
     private void updateEnemyTurnSequence() {
-        if (!enemyTurnActive || !enemyTurnMoveInFlight || activeTurnEnemy == null) return;
+        if (!enemyTurnActive) return;
+        if (enemyIntentDelay > 0f) {
+            enemyIntentDelay = Math.max(0f, enemyIntentDelay - Gdx.graphics.getDeltaTime());
+            if (enemyIntentDelay <= 0f) startNextEnemyInSequence();
+            return;
+        }
+        if (!enemyTurnMoveInFlight || activeTurnEnemy == null) return;
         if (activeTurnEnemy.isMoving()) return;
 
         enemyTurnMoveInFlight = false;
@@ -6101,6 +6115,8 @@ public class Main extends Game {
             int hit = difficulty >= (runPact[1] ? 4 : 8) ? 2 : 1;
             damagePlayer(hit);
             message("Enemy hit you! (-" + hit + ")", 1.5f);
+            if (!gameOverScreen.isVisible()) retreatPlayerAfterHit(e);
+            stunnedTurns.put(e, 1);
             finishActiveEnemy();
             return;
         }
@@ -6142,6 +6158,7 @@ public class Main extends Game {
     private void finishEnemyTurnSequence() {
         enemyTurnActive = false;
         enemyTurnMoveInFlight = false;
+        enemyIntentDelay = 0f;
         activeTurnEnemy = null;
         activeEnemyStepsRemaining = 0;
         enemyTurnQueue.clear();
@@ -6288,7 +6305,8 @@ public class Main extends Game {
                 damagePlayer(hit);
                 message("Enemy hit you! (-" + hit + ")", 1.5f);
                 if (gameOverScreen.isVisible()) return;
-
+                retreatPlayerAfterHit(e);
+                stunnedTurns.put(e, 1);
             }
         }
 
@@ -6388,6 +6406,43 @@ public class Main extends Game {
             message("Withering! You can't heal right now.", 1.5f);
             return;
         }
+    }
+
+    /** Move the King to a free adjacent tile after contact; never leave two living pieces stacked. */
+    private boolean retreatPlayerAfterHit(Enemy attacker) {
+        int px = player.getX(), py = player.getY();
+        int[][] directions = {{0,1},{1,0},{0,-1},{-1,0},{1,1},{1,-1},{-1,-1},{-1,1}};
+        int bestX = -1, bestY = -1, bestSafety = Integer.MIN_VALUE;
+        for (int[] direction : directions) {
+            int tx = px + direction[0], ty = py + direction[1];
+            if (tx < 0 || tx >= Player.BOARD_SIZE || ty < 0 || ty >= Player.BOARD_SIZE) continue;
+            if (getEnemyAt(tx, ty, attacker) != null) continue;
+            int nearest = Integer.MAX_VALUE;
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy other = enemies.get(i);
+                if (!other.isAlive() || other == attacker) continue;
+                nearest = Math.min(nearest, Math.abs(other.getX() - tx) + Math.abs(other.getY() - ty));
+            }
+            int safety = (nearest == Integer.MAX_VALUE ? 20 : nearest * 10)
+                - (board.isPoisoned(tx, ty) ? 100 : 0);
+            if (safety > bestSafety) { bestSafety = safety; bestX = tx; bestY = ty; }
+        }
+        if (bestX < 0) {
+            int bestDistance = Integer.MAX_VALUE;
+            for (int tx = 0; tx < Player.BOARD_SIZE; tx++) for (int ty = 0; ty < Player.BOARD_SIZE; ty++) {
+                if (tx == px && ty == py) continue;
+                if (getEnemyAt(tx, ty, attacker) != null) continue;
+                int distance = Math.abs(tx - px) + Math.abs(ty - py);
+                if (distance < bestDistance) { bestDistance = distance; bestX = tx; bestY = ty; }
+            }
+        }
+        if (bestX < 0) return false;
+        player.setPosition(bestX, bestY);
+        spawnBurst(tileCenterX(px), tileCenterY(py), 12, 1f, .32f, .25f, 48f);
+        spawnBurst(tileCenterX(bestX), tileCenterY(bestY), 10, .35f, .8f, 1f, 38f);
+        spawnFloat("FORCED RETREAT", tileCenterX(bestX), tileCenterY(bestY) + 30f, .45f, .8f, 1f);
+        startShake(.16f, 4f);
+        return true;
     }
 
     private boolean enemyCapturedPlayer(Enemy e) {
@@ -7350,14 +7405,14 @@ public class Main extends Game {
 
     private void renderEnemyIntents() {
         if (menuVisible || kingEnchantmentScreen.isVisible() || rewardScreen.isVisible()
-            || shopScreen.isVisible() || evtVisible || enemyTurnActive || moveAnimActive) return;
+            || shopScreen.isVisible() || evtVisible || (enemyTurnActive && enemyIntentDelay <= 0f) || moveAnimActive) return;
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
             if (!e.isAlive() || e.isFalling() || e.isMoving()) continue;
             int aimX = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkX : player.getX();
             int aimY = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkY : player.getY();
-            int[] target = e.previewMoveTowards(aimX, aimY);
+            int[] target = e.previewMoveTowards(aimX, aimY, enemies);
             if (target == null) continue;
             float sx = tileCenterX(e.getX()), sy = tileCenterY(e.getY());
             float tx = tileCenterX(target[0]), ty = tileCenterY(target[1]);
@@ -7533,7 +7588,12 @@ public class Main extends Game {
         for (int i = visibleHandStart(); i < visibleHandEnd(); i++) {
             hand.get(i).drawShape(batch);
         }
-        for (int i = 0; i < enemies.size; i++) enemies.get(i).render(batch);
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if ((moveAnimActive || !e.isAlive())
+                && e.getX() == player.getX() && e.getY() == player.getY()) continue;
+            e.render(batch);
+        }
         beginPlayerAnim();
         if (invisibleTurns > 0) batch.setColor(1f, 1f, 1f, 0.35f + 0.1f * MathUtils.sin(uiTime * 4f));
         player.render(batch);
