@@ -3996,6 +3996,7 @@ public class Main extends Game {
         }
 
         clearMoveAnim();
+        resetTacticalMark();
         menuVisible = false;
         bestiaryVisible = false;
         tutorialVisible = false;
@@ -7123,7 +7124,7 @@ public class Main extends Game {
         batch.begin();
         font.getData().setScale(.46f);
         font.setColor(tacticalMarkAvailable ? new Color(1f, .78f, .38f, 1f) : Color.GRAY);
-        String label = placingTacticalMark ? "SELECT A TILE..." : tacticalMarkAvailable ? "TACTICAL MARK  [1]" : "MARK SPENT";
+        String label = placingTacticalMark ? "SELECT A TILE..." : tacticalMarkAvailable ? "TACTICAL MARK  1/ROOM" : "MARK SPENT";
         font.draw(batch, label, tacticalMarkButton.x + 10f, tacticalMarkButton.y + 24f);
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
