@@ -50,7 +50,7 @@ public class Card {
         }
 
         public String frameFile() {
-            return "cards/card_" + name().toLowerCase(java.util.Locale.ROOT) + ".png";
+            return "card_" + name().toLowerCase(java.util.Locale.ROOT) + ".png";
         }
     }
 
@@ -114,7 +114,9 @@ public class Card {
             try {
                 if (Gdx.files.internal(r.frameFile()).exists()) {
                     Texture t = new Texture(Gdx.files.internal(r.frameFile()));
-                    t.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+                    // These are full-size UI card illustrations; linear filtering keeps
+                    // their edges clean when the hand scales down for smaller screens.
+                    t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
                     rarityFrames.put(r, t);
                 }
             } catch (Exception ignored) {
