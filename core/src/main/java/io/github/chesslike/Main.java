@@ -5782,7 +5782,8 @@ public class Main extends Game {
         }
 
         // Resolve tile effects and contact damage after the piece visibly arrives.
-        if (board.isPoisoned(e.getX(), e.getY())) {
+        boolean steppedOnPoison = board.isPoisoned(e.getX(), e.getY());
+        if (steppedOnPoison) {
             playSfx(poisonSound);
             damageEnemy(e, 1, .45f, .95f, .3f);
             message("Enemy poisoned!", 1.2f);
@@ -5806,6 +5807,12 @@ public class Main extends Game {
             int hit = difficulty >= (runPact[1] ? 4 : 8) ? 2 : 1;
             damagePlayer(hit);
             message("Enemy hit you! (-" + hit + ")", 1.5f);
+            finishActiveEnemy();
+            return;
+        }
+
+        // A poison pool ends this enemy's movement, just as it did before sequencing.
+        if (steppedOnPoison) {
             finishActiveEnemy();
             return;
         }
