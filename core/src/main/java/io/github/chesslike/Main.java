@@ -1591,9 +1591,25 @@ public class Main extends Game {
         );
     }
 
+    private int visibleHandStart() {
+        return handPageIndex * VISIBLE_HAND_CARDS;
+    }
+
+    private int visibleHandEnd() {
+        return Math.min(hand.size, visibleHandStart() + VISIBLE_HAND_CARDS);
+    }
+
     private void cycleHandPage() {
         int pageCount = Math.max(1, (hand.size + VISIBLE_HAND_CARDS - 1) / VISIBLE_HAND_CARDS);
         if (pageCount <= 1) return;
+
+        if (activeCard != null) activeCard.setSelected(false);
+        activeCard = null;
+        player.setSelected(false);
+        dragCandidate = null;
+        draggedCard = null;
+        tooltipEnemy = null;
+
         handPageIndex = (handPageIndex + 1) % pageCount;
         positionCards();
         if (clickSound != null) clickSound.play();
@@ -1609,7 +1625,11 @@ public class Main extends Game {
 
     private void updateCardHover() {
         float mx = Gdx.input.getX(), my = Gdx.graphics.getHeight() - Gdx.input.getY();
-        for (Card c : hand) c.setHovered(c.isClicked(mx, my));
+        int start = visibleHandStart(), end = visibleHandEnd();
+        for (int i = 0; i < hand.size; i++) {
+            Card card = hand.get(i);
+            card.setHovered(i >= start && i < end && card.isClicked(mx, my));
+        }
     }
 
     private void startEnemyDrop() {
@@ -3212,7 +3232,7 @@ public class Main extends Game {
         if (Gdx.input.justTouched()) {
             dragCandidate = null;
             draggedCard = null;
-            for (int i = hand.size - 1; i >= 0; i--) {
+            for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
                 if (hand.get(i).isClicked(x, y)) {
                     dragCandidate = hand.get(i);
                     break;
@@ -3231,8 +3251,8 @@ public class Main extends Game {
                 draggedCard = dragCandidate;
             }
             if (draggedCard != null) {
-                float s = currentCardScale();
-                draggedCard.setPosition(x - 115f * s / 2f, y - 155f * s / 2f);
+                float s = draggedCard.getSlotWidth() / Card.BASE_WIDTH;
+                draggedCard.setPosition(x - Card.BASE_WIDTH * s / 2f, y - Card.BASE_HEIGHT * s / 2f);
             }
             return true;
         }
@@ -3250,7 +3270,7 @@ public class Main extends Game {
         draggedCard = null;
 
         Card target = null;
-        for (int i = hand.size - 1; i >= 0; i--) {
+        for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
             Card c = hand.get(i);
             if (c != dragged && c.isClicked(x, y)) {
                 target = c;
@@ -4972,7 +4992,7 @@ public class Main extends Game {
         float touchX = Gdx.input.getX(), touchY = Gdx.graphics.getHeight() - Gdx.input.getY();
         if (activeCard == null) {
             boolean hitCard = false;
-            for (int i = hand.size - 1; i >= 0; i--) {
+            for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
                 Card c = hand.get(i);
                 if (c.isClicked(touchX, touchY)) {
                     clickSound.play();
@@ -5018,6 +5038,8 @@ public class Main extends Game {
             if (player.isClicked(touchX, touchY) && hand.size > 0) {
                 clickSound.play();
                 kingCardCycleIndex = (kingCardCycleIndex + 1) % hand.size;
+                handPageIndex = kingCardCycleIndex / VISIBLE_HAND_CARDS;
+                positionCards();
                 activeCard = hand.get(kingCardCycleIndex);
                 activeCard.setSelected(true);
                 player.setSelected(false);
@@ -5041,6 +5063,8 @@ public class Main extends Game {
             clickSound.play();
             kingCardCycleIndex = (kingCardCycleIndex + 1) % Math.max(1, hand.size);
             activeCard.setSelected(false);
+            handPageIndex = kingCardCycleIndex / VISIBLE_HAND_CARDS;
+            positionCards();
             activeCard = hand.get(kingCardCycleIndex);
             activeCard.setSelected(true);
             player.setSelected(true);
@@ -7086,7 +7110,9 @@ public class Main extends Game {
         if (shootMode) player.renderArrowRange(shapeRenderer);
         shapeRenderer.end();
         batch.begin();
-        for (Card c : hand) c.drawShape(batch);
+        for (int i = visibleHandStart(); i < visibleHandEnd(); i++) {
+            hand.get(i).drawShape(batch);
+        }
         for (int i = 0; i < enemies.size; i++) enemies.get(i).render(batch);
         beginPlayerAnim();
         if (invisibleTurns > 0) batch.setColor(1f, 1f, 1f, 0.35f + 0.1f * MathUtils.sin(uiTime * 4f));
