@@ -179,7 +179,8 @@ public class Main extends Game {
         {
             "Capture every enemy to clear the room.",
             "Pick a card, tap your piece, tap a tile.",
-            "Enemies move after each card.",
+            "Gold intent arrows reveal each enemy's next tile.",
+            "Enemy movement is deterministic: plan a trap, then execute.",
             "Tap an enemy to see its info."
         },
         {},
@@ -541,6 +542,9 @@ public class Main extends Game {
     private int gold = 0;
     private RewardScreen rewardScreen;
     private GameOverScreen gameOverScreen;
+    private final KingEnchantmentSystem kingEnchantments = new KingEnchantmentSystem();
+    private KingEnchantmentScreen kingEnchantmentScreen;
+    private final Rectangle enchantmentsButton = new Rectangle();
     private int difficulty = 1;
     private int enemyTurnCounter = 0;
     private final Corruption corruption = new Corruption();
@@ -761,6 +765,7 @@ public class Main extends Game {
         enemyGenerator = new EnemyGenerator();
         hand = new Array<>();
         rewardScreen = new RewardScreen(batch, shapeRenderer, font);
+        kingEnchantmentScreen = new KingEnchantmentScreen();
         gameOverScreen = new GameOverScreen(batch, shapeRenderer, font);
         shopScreen = new ShopScreen(batch, shapeRenderer, font);
         blitzRelicShop = new BlitzRelicShopScreen(batch, shapeRenderer, font);
@@ -1267,7 +1272,7 @@ public class Main extends Game {
 
     // MANA (relic-aware)
     private int getMaxMana() {
-        int m = BASE_MAX_MANA + upLevels[2];
+        int m = BASE_MAX_MANA + upLevels[2] + kingEnchantments.getMaxManaBonus();
         if (hasRelic(Relic.Blessing.ARCANE_WELL)) m += 2;
         if (hasCurse(Relic.Curse.DRAINED)) m -= 2;
         if (runPact[2]) m -= 2;
@@ -4063,6 +4068,8 @@ public class Main extends Game {
 
         rollPoison();
         generateEnemiesForCurrentRoom();
+        kingEnchantments.beginRoom();
+        kingEnchantmentScreen.show();
         positionCards();
         if (backgroundMusic != null && !backgroundMusic.isPlaying()) backgroundMusic.play();
         roomRerolled = savePrefs.getBoolean("roomRerolled", false);
@@ -4369,6 +4376,8 @@ public class Main extends Game {
         evtVisible = false;
         omen = OMEN_NONE;
         corruption.reset();
+        kingEnchantments.resetRun();
+        kingEnchantmentScreen.hide();
 
         if (blitzMode) {
             blitzManager.start();
@@ -4395,6 +4404,7 @@ public class Main extends Game {
 
         if (player != null) player.dispose();
         player = new Player(2, 2);
+        player.setCorruption(corruption);
 
         resetPlayerStats();
         buildStartingHand();
@@ -4845,6 +4855,15 @@ public class Main extends Game {
             }
             return;
         }
+        if (kingEnchantmentScreen.isVisible()) {
+            if (Gdx.input.justTouched()) {
+                float ex = Gdx.input.getX(), ey = Gdx.graphics.getHeight() - Gdx.input.getY();
+                KingEnchantmentSystem.Enchantment chosen = kingEnchantmentScreen.handleClick(ex, ey, kingEnchantments);
+                if (chosen != null) applyKingEnchantment(chosen);
+                else if (!kingEnchantmentScreen.isVisible()) clickSound.play();
+            }
+            return;
+        }
         if (blitzRelicShop.isVisible()) {
             handleBlitzRelicShopInput();
             return;
@@ -4907,8 +4926,14 @@ public class Main extends Game {
         }
 
         layoutAugmentBadgeButton();
+        layoutEnchantmentButton();
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
+            if (!blitzMode && enchantmentsButton.contains(ux, uy)) {
+                clickSound.play();
+                kingEnchantmentScreen.show();
+                return;
+            }
             if (hand.size > VISIBLE_HAND_CARDS && handCycleButton.contains(ux, uy)) {
                 cycleHandPage();
                 return;
@@ -5508,6 +5533,12 @@ public class Main extends Game {
             if (!critical) {
                 int cardDamage = cc == null ? 1 : cc.getAttackDamage();
                 int captureDamage = Math.max(rollCaptureDamage(), cardDamage);
+                if (kingEnchantments.hasHunterMark()
+                    && target.getHealth() * 2 > target.getMaxHealth()) {
+                    captureDamage++;
+                    spawnFloat("HUNTER'S MARK +1", tileCenterX(target.getX()),
+                        tileCenterY(target.getY()) + 54f, .45f, .9f, .75f);
+                }
                 if (cc != null && cc.hasFury()) {
                     captureDamage += 1;
                     spawnFloat("FURY +1", tileCenterX(player.getX()), tileCenterY(player.getY()) + 62f, 1f, .3f, .3f);
@@ -5571,6 +5602,7 @@ public class Main extends Game {
 
             spawnSlash(player.getX(), player.getY());
             registerCapture(target, cc, curse, invisibleTurns > 0, captureHealthPercent);
+            if (kingEnchantments.consumeBloodOathTrigger()) healPlayer(1);
             triggerCardEvolution(cc, target);
             triggerNewAugmentChain(cc, target);
             refillHandIfNeeded();
@@ -6115,6 +6147,14 @@ public class Main extends Game {
             );
         }
 
+        if (dmg > 0 && dmg >= playerHp && kingEnchantments.consumePhoenixSave()) {
+            playerHp = 1;
+            spawnBurst(tileCenterX(player.getX()), tileCenterY(player.getY()), 24, .9f, .65f, .25f, 65f);
+            showPopup("PHOENIX RUNE", 1f, .72f, .25f, 1.5f);
+            message("Phoenix Rune prevented a fatal hit!", 2f);
+            return true;
+        }
+
         playerHp = Math.max(0, playerHp - dmg);
 
         if (playerHp <= 0) {
@@ -6215,6 +6255,9 @@ public class Main extends Game {
 
     private void generateNextRoom() {
         difficulty++;
+        kingEnchantments.beginRoom();
+        if (kingEnchantments.has(KingEnchantmentSystem.Enchantment.WARDING_SIGIL))
+            defense = Math.min(MAX_DEFENSE, defense + 1);
         if (blitzMode && blitzManager != null) blitzManager.resetRoom();
         rollPoison();
         for (int i = 0; i < enemies.size; i++) enemies.get(i).dispose();
@@ -6562,11 +6605,15 @@ public class Main extends Game {
         if (player != null) player.dispose();
         player = new Player(3, 3);
         player.setCorruption(corruption);
+        kingEnchantments.resetRun();
+        kingEnchantmentScreen.hide();
         resetPlayerStats();
         buildStartingHand();
         if (enemies != null) for (int i = 0; i < enemies.size; i++) enemies.get(i).dispose();
         rollPoison();
         generateEnemiesForCurrentRoom();
+        kingEnchantments.beginRoom();
+        kingEnchantmentScreen.show();
         rewardScreen.hide();
         gameOverScreen.hide();
         shopScreen.hide();
@@ -6968,6 +7015,81 @@ public class Main extends Game {
         popupColor.set(r, g, b, 1f);
     }
 
+    private void layoutEnchantmentButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        enchantmentsButton.set(Math.max(10f, w - 194f), Math.max(10f, h - 132f), 176f, 38f);
+    }
+
+    private void renderEnchantmentButton() {
+        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+            || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        layoutEnchantmentButton();
+        boolean chosen = !kingEnchantments.getActiveEnchantments().isEmpty();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(.055f, .065f, .10f, .94f);
+        shapeRenderer.rect(enchantmentsButton.x, enchantmentsButton.y, enchantmentsButton.width, enchantmentsButton.height);
+        shapeRenderer.setColor(chosen ? .35f : .95f, chosen ? .82f : .68f, chosen ? .45f : .25f, 1f);
+        shapeRenderer.rect(enchantmentsButton.x, enchantmentsButton.y + enchantmentsButton.height - 3f, enchantmentsButton.width, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.46f);
+        font.setColor(chosen ? new Color(.55f, 1f, .65f, 1f) : new Color(1f, .82f, .38f, 1f));
+        font.draw(batch, chosen ? "KING'S OATH  ✓" : "CHOOSE KING'S OATH",
+            enchantmentsButton.x + 10f, enchantmentsButton.y + 24f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
+    private void applyKingEnchantment(KingEnchantmentSystem.Enchantment enchantment) {
+        if (!kingEnchantments.enchant(enchantment)) return;
+        switch (enchantment) {
+            case IRON_CROWN:
+                playerMaxHp++;
+                playerHp = Math.min(playerMaxHp, playerHp + 1);
+                break;
+            case WARDING_SIGIL:
+                defense = Math.min(MAX_DEFENSE, defense + 1);
+                break;
+            case ARCANE_HEART:
+                mana = Math.min(getMaxMana(), mana + 1);
+                break;
+            default:
+                break;
+        }
+        playSfx(blessingSound);
+        message(enchantment.getDisplayName() + " bound to the King.", 2.2f);
+        autosave();
+    }
+
+    private void renderEnemyIntents() {
+        if (menuVisible || kingEnchantmentScreen.isVisible() || rewardScreen.isVisible()
+            || shopScreen.isVisible() || evtVisible || enemyTurnActive || moveAnimActive) return;
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if (!e.isAlive() || e.isFalling() || e.isMoving()) continue;
+            int[] target = e.previewMoveTowards(player.getX(), player.getY());
+            if (target == null) continue;
+            float sx = tileCenterX(e.getX()), sy = tileCenterY(e.getY());
+            float tx = tileCenterX(target[0]), ty = tileCenterY(target[1]);
+            shapeRenderer.setColor(1f, .68f, .22f, .55f);
+            shapeRenderer.rectLine(sx, sy, tx, ty, 3f);
+            shapeRenderer.circle(tx, ty, Player.TILE_SIZE * .13f, 18);
+            shapeRenderer.setColor(1f, .88f, .48f, .9f);
+            shapeRenderer.circle(tx, ty, Player.TILE_SIZE * .07f, 18);
+        }
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.34f);
+        font.setColor(1f, .78f, .35f, .9f);
+        font.draw(batch, "GOLD = ENEMY'S NEXT MOVE", Gdx.graphics.getWidth() * .5f - 90f,
+            Gdx.graphics.getHeight() - 18f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
     private void renderCorruptionHud() {
         if (blitzMode || menuVisible || gameOverScreen.isVisible()
             || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
@@ -7107,6 +7229,7 @@ public class Main extends Game {
         updateSlashes(delta);
         board.render();
         renderPoisonTiles();
+        renderEnemyIntents();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (int i = 0; i < enemies.size; i++) enemies.get(i).renderShadow(shapeRenderer);
         if (activeCard != null && player.isSelected()) player.renderLegalMoves(shapeRenderer, activeCard, board);
@@ -7168,6 +7291,8 @@ public class Main extends Game {
         renderUiButtons();
         renderTooltip();
         renderCorruptionHud();
+        renderEnchantmentButton();
+        kingEnchantmentScreen.render(batch, shapeRenderer, font, kingEnchantments);
         rewardScreen.render(hand);
         if (shopScreen.isVisible()) shopScreen.render(gold);
         if (blitzRelicShop.isVisible()) blitzRelicShop.render(gold, blitzManager);
