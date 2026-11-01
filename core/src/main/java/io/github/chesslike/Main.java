@@ -1345,6 +1345,9 @@ public class Main extends Game {
             case SHIFTER:
                 card = new Card("Shifter", Card.MovementType.SHIFTER, 3);
                 break;
+            case HUNTER:
+                card = new Card("Hunter", Card.MovementType.HUNTER, 2);
+                break;
             default:
                 return createCard(Card.MovementType.KNIGHT);
         }
