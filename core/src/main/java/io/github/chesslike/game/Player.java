@@ -14,7 +14,7 @@ public class Player {
     private final Texture texture;
 
     public static final int BOARD_SIZE = 6;
-    public static final float TILE_SIZE = 100f;
+    public static final float TILE_SIZE = 84f;
 
 
     private boolean selected = false;
