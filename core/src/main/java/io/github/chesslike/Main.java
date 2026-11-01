@@ -451,6 +451,9 @@ public class Main extends Game {
     private Array<Card> hand;
     private Card activeCard;
     private int kingCardCycleIndex = -1;
+    private int handPageIndex = 0;
+    private final Rectangle handCycleButton = new Rectangle();
+    private static final int VISIBLE_HAND_CARDS = 3;
     private static final int MAX_HAND_SIZE = 5;
     private final Random random = new Random();
     private final Array<Debris> debris = new Array<>();
@@ -1543,32 +1546,53 @@ public class Main extends Game {
     }
 
     private void positionCards() {
-        if (hand == null || hand.size == 0) return;
+        if (hand == null || hand.size == 0) {
+            handPageIndex = 0;
+            handCycleButton.set(0, 0, 0, 0);
+            return;
+        }
+
+        int pageCount = Math.max(1, (hand.size + VISIBLE_HAND_CARDS - 1) / VISIBLE_HAND_CARDS);
+        handPageIndex = Math.floorMod(handPageIndex, pageCount);
 
         float screenW = Gdx.graphics.getWidth();
-        float h = Gdx.graphics.getHeight();
-        float scale = currentCardScale();
-        float cw = 115f * scale;
-        float ch = 155f * scale;
-
-        // Clean right-side stack: aligned cards with a controlled overlap, never a diagonal fan.
-        float stepY = ch * 0.66f;
-        float totalH = ch + Math.max(0, hand.size - 1) * stepY;
-        float startY = Math.max(8f, (h - totalH) / 2f);
-        float startX = screenW - cw - 12f;
-
-        // On short windows, tighten the overlap before allowing the stack to clip.
-        if (totalH > h - 16f && hand.size > 1) {
-            stepY = Math.max(36f, (h - 16f - ch) / (hand.size - 1));
-            totalH = ch + (hand.size - 1) * stepY;
-            startY = Math.max(8f, (h - totalH) / 2f);
-        }
+        float screenH = Gdx.graphics.getHeight();
+        float scale = Math.min(currentCardScale(), Math.min(1f, screenW / 1100f));
+        float cw = 105f * scale;
+        float ch = 142f * scale;
+        float gap = 8f * scale;
+        float buttonW = 42f * scale;
+        float buttonH = 54f * scale;
+        float totalW = VISIBLE_HAND_CARDS * cw + (VISIBLE_HAND_CARDS - 1) * gap + buttonW + gap;
+        float startX = Math.max(12f, screenW - totalW - 16f);
+        float y = Math.max(12f, 18f);
 
         for (int i = 0; i < hand.size; i++) {
-            Card c = hand.get(i);
-            c.setLayoutScale(scale);
-            c.setPosition(startX, startY + i * stepY);
+            Card card = hand.get(i);
+            card.setLayoutScale(scale);
+            int visibleIndex = i - handPageIndex * VISIBLE_HAND_CARDS;
+            if (visibleIndex >= 0 && visibleIndex < VISIBLE_HAND_CARDS) {
+                card.setPosition(startX + visibleIndex * (cw + gap), y);
+            } else {
+                // Keep cards in the hand but outside the viewport so only three render.
+                card.setPosition(-cw - 20f, -ch - 20f);
+            }
         }
+
+        handCycleButton.set(
+            startX + VISIBLE_HAND_CARDS * (cw + gap),
+            y + (ch - buttonH) * .5f,
+            buttonW,
+            buttonH
+        );
+    }
+
+    private void cycleHandPage() {
+        int pageCount = Math.max(1, (hand.size + VISIBLE_HAND_CARDS - 1) / VISIBLE_HAND_CARDS);
+        if (pageCount <= 1) return;
+        handPageIndex = (handPageIndex + 1) % pageCount;
+        positionCards();
+        if (clickSound != null) clickSound.play();
     }
 
     private void curseAllEnemies() {
@@ -4861,6 +4885,10 @@ public class Main extends Game {
         layoutAugmentBadgeButton();
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
+            if (hand.size > VISIBLE_HAND_CARDS && handCycleButton.contains(ux, uy)) {
+                cycleHandPage();
+                return;
+            }
             if (badgeUseButton.contains(ux, uy)) {
                 if (augmentBadges <= 0) {
                     playSfx(errorSound);
@@ -7068,7 +7096,24 @@ public class Main extends Game {
             batch.draw(arrowTexture, x - ARROW_DRAW_WIDTH, y - ARROW_DRAW_HEIGHT, ARROW_DRAW_WIDTH, ARROW_DRAW_HEIGHT, ARROW_DRAW_WIDTH, ARROW_DRAW_HEIGHT, 2f, 2f, angle, 0, 0, arrowTexture.getWidth(), arrowTexture.getHeight(), false, false);
             batch.setColor(Color.WHITE);
         }
-        for (Card c : hand) c.drawText(batch, font);
+        for (int i = handPageIndex * VISIBLE_HAND_CARDS;
+             i < Math.min(hand.size, (handPageIndex + 1) * VISIBLE_HAND_CARDS); i++) {
+            hand.get(i).drawText(batch, font);
+        }
+        if (hand.size > VISIBLE_HAND_CARDS) {
+            font.getData().setScale(.55f);
+            font.setColor(.88f, .92f, 1f, 1f);
+            String pageLabel = (handPageIndex + 1) + "/" +
+                ((hand.size + VISIBLE_HAND_CARDS - 1) / VISIBLE_HAND_CARDS);
+            font.draw(batch, pageLabel, handCycleButton.x + 5f, handCycleButton.y + handCycleButton.height + 13f);
+            batch.setColor(Color.WHITE);
+            batch.draw(menuButtonTexture, handCycleButton.x, handCycleButton.y,
+                handCycleButton.width, handCycleButton.height);
+            font.setColor(Color.WHITE);
+            font.getData().setScale(.8f);
+            font.draw(batch, ">", handCycleButton.x + handCycleButton.width * .34f,
+                handCycleButton.y + handCycleButton.height * .64f);
+        }
         font.getData().setScale(1f);
         font.setColor(new Color(.3f, .8f, 1f, 1f));
         font.draw(batch, eventMessage, 20, Gdx.graphics.getHeight() - 20);
