@@ -20,7 +20,7 @@ public class Enemy {
     private MovementRules movementRules;
 
     private static final int BOARD_SIZE = Board.SIZE;
-    private static final int TILE_SIZE = 100;
+    private static final int TILE_SIZE = (int) Player.TILE_SIZE;
 
     private boolean alive = true;
 
@@ -184,16 +184,42 @@ public class Enemy {
         }
     }
 
-    // CHAMELEON: borrows a different piece's movement every turn
-    private MovementRules randomChameleonRules() {
-        switch (random.nextInt(3)) {
-            case 0:
-                return new KnightRules();
-            case 1:
-                return new BishopRules();
-            default:
-                return new RookRules();
+    // CHAMELEON / PHANTOM: rotate through a known movement cycle.
+    // This makes their next move forecastable instead of random.
+    private int chameleonForm = 0;
+
+    private MovementRules chameleonRulesFor(int form) {
+        switch (Math.floorMod(form, 3)) {
+            case 0: return new KnightRules();
+            case 1: return new BishopRules();
+            default: return new RookRules();
         }
+    }
+
+    private MovementRules randomChameleonRules() {
+        return chameleonRulesFor(chameleonForm);
+    }
+
+    /** Returns the exact destination the enemy will choose on its next turn. */
+    public int[] previewMoveTowards(int playerX, int playerY) {
+        if (!alive || falling || skipNextMove || movementRules instanceof JesterRules) return null;
+        MovementRules rules = movementRules;
+        if (movementType == Card.MovementType.CHAMELEON || variant == EnemyVariant.PHANTOM) {
+            rules = chameleonRulesFor(chameleonForm + 1);
+        }
+        int[] best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int tx = 0; tx < BOARD_SIZE; tx++) {
+            for (int ty = 0; ty < BOARD_SIZE; ty++) {
+                if (!rules.isValidMove(x, y, tx, ty, BOARD_SIZE)) continue;
+                int distance = Math.abs(tx - playerX) + Math.abs(ty - playerY);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = new int[] {tx, ty};
+                }
+            }
+        }
+        return best;
     }
 
     // FALL-IN
@@ -314,9 +340,10 @@ public class Enemy {
             return false;
         }
 
-        // Chameleon changes its movement rules every turn
+        // Chameleon / Phantom rotate Knight -> Bishop -> Rook predictably.
         if (movementType == Card.MovementType.CHAMELEON || variant == EnemyVariant.PHANTOM) {
-            movementRules = randomChameleonRules();
+            chameleonForm = (chameleonForm + 1) % 3;
+            movementRules = chameleonRulesFor(chameleonForm);
         }
 
         List<int[]> legalMoves = new ArrayList<>();
