@@ -1601,7 +1601,8 @@ public class Main extends Game {
         float buttonW = 42f * scale;
         float buttonH = 54f * scale;
         float totalW = VISIBLE_HAND_CARDS * cw + (VISIBLE_HAND_CARDS - 1) * gap + buttonW + gap;
-        float startX = Math.max(12f, screenW - totalW - 16f);
+        // Keep the hand tucked further to the right while preserving a touch-safe edge margin.
+        float startX = Math.max(12f, screenW - totalW - 6f);
         float y = Math.max(12f, 18f);
 
         for (int i = 0; i < hand.size; i++) {
