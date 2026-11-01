@@ -102,7 +102,11 @@ public class Player {
     // =========================================
 
     public static float getBoardX() {
-        return (Gdx.graphics.getWidth() - BOARD_SIZE * getTileSize()) / 2f;
+        float width = Gdx.graphics.getWidth();
+        float boardWidth = BOARD_SIZE * getTileSize();
+        float handClearance = width >= 1100f ? Math.min(120f, width * .085f)
+            : width >= 850f ? width * .055f : 0f;
+        return Math.max(8f, (width - boardWidth) / 2f - handClearance);
     }
 
     public static float getBoardY() {
