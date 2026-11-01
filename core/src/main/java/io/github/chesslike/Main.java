@@ -6974,36 +6974,39 @@ public class Main extends Game {
 
         float screenW = Gdx.graphics.getWidth();
         float screenH = Gdx.graphics.getHeight();
-        float w = Math.min(260f, Math.max(190f, screenW * 0.22f));
-        float x = 18f;
-        float objectiveH = omen == OMEN_NONE ? 92f : 132f;
-        float objectiveY = screenH - 150f - objectiveH;
-        // Keep the corruption strip directly beneath the objective panel and inside
-        // the visible play area even on short laptop/mobile windows.
-        float panelH = 42f;
-        float y = MathUtils.clamp(objectiveY - 28f, panelH + 8f, screenH - 12f);
-        float barH = 10f;
+        // A compact top-right HUD chip: health/objectives own the left column,
+        // the board owns the centre, and the card hand stays at the bottom-right.
+        float w = Math.min(236f, Math.max(172f, screenW * 0.21f));
+        float panelH = 54f;
+        float x = Math.max(10f, screenW - w - 18f);
+        float y = Math.max(10f, screenH - panelH - 18f);
+        float barH = 8f;
         float p = MathUtils.clamp(corruption.getProgress(), 0f, 1f);
 
-        // Corruption lives directly below the objective panel as one quiet status strip.
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(.055f, .04f, .08f, .94f);
-        shapeRenderer.rect(x, y - panelH / 2f, w, panelH);
-        shapeRenderer.setColor(.42f, .18f, .52f, 1f);
-        shapeRenderer.rect(x, y + panelH / 2f - 2f, w, 2f);
-        shapeRenderer.setColor(.10f, .07f, .14f, .95f);
-        shapeRenderer.rect(x + 8f, y - 7f, w - 16f, barH);
-        shapeRenderer.setColor(.72f, .20f, .92f, 1f);
-        shapeRenderer.rect(x + 8f, y - 7f, (w - 16f) * p, barH);
+        shapeRenderer.setColor(0f, 0f, 0f, .32f);
+        shapeRenderer.rect(x + 3f, y - 3f, w, panelH);
+        shapeRenderer.setColor(.045f, .035f, .065f, .94f);
+        shapeRenderer.rect(x, y, w, panelH);
+        shapeRenderer.setColor(.55f, .22f, .72f, .95f);
+        shapeRenderer.rect(x, y + panelH - 2f, w, 2f);
+        shapeRenderer.setColor(.12f, .08f, .16f, 1f);
+        shapeRenderer.rect(x + 10f, y + 10f, w - 20f, barH);
+        if (p > 0f) {
+            shapeRenderer.setColor(.72f, .24f, .94f, 1f);
+            shapeRenderer.rect(x + 10f, y + 10f, (w - 20f) * p, barH);
+        }
         shapeRenderer.end();
 
         batch.begin();
-        font.getData().setScale(.42f);
-        font.setColor(new Color(.82f, .42f, 1f, 1f));
-        font.draw(batch, "CORRUPTION  " + corruption.getLevel() + "%", x + 8f, y + 12f);
-        font.getData().setScale(.31f);
-        font.setColor(new Color(.82f, .80f, .90f, 1f));
-        font.draw(batch, corruption.getStatusText(), x + 8f, y - 14f);
+        font.getData().setScale(.43f);
+        font.setColor(new Color(.86f, .58f, 1f, 1f));
+        font.draw(batch, "CORRUPTION", x + 10f, y + 42f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, corruption.getLevel() + "%", x + w - 48f, y + 42f);
+        font.getData().setScale(.30f);
+        font.setColor(new Color(.80f, .76f, .86f, 1f));
+        font.draw(batch, corruption.getStatusText(), x + 10f, y + 5f);
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
         batch.end();
