@@ -177,6 +177,8 @@ public class Enemy {
                 return new MadRookRules();
             case CHAMELEON:
                 return randomChameleonRules();
+            case HUNTER:
+                return new HunterRules();
             default:
                 throw new IllegalArgumentException("Unknown enemy type: " + type);
         }
