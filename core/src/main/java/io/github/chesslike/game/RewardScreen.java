@@ -183,7 +183,8 @@ public class RewardScreen {
         cardButtons.clear();
         augmentButtons.clear();
 
-        state = State.CHOOSING_REWARD;
+        // Every room clear requires an actual card upgrade before the next room.
+        state = State.CHOOSING_CARD;
     }
 
     // ------------------------------------------------
@@ -394,7 +395,7 @@ public class RewardScreen {
 
         font.draw(
             batch,
-            "ROOM CLEARED",
+            "ROOM CLEARED  /  UPGRADE REQUIRED",
             panelX + 35f,
             panelY + panelHeight - 40f
         );
@@ -412,7 +413,7 @@ public class RewardScreen {
 
         font.draw(
             batch,
-            "Choose your reward",
+            "Choose a card to upgrade before continuing",
             panelX + 35f,
             panelY + panelHeight - 78f
         );
@@ -471,17 +472,15 @@ public class RewardScreen {
 
         cardButtons.clear();
 
-        float cardWidth = 120f;
-        float cardHeight = 170f;
-        float gap = 15f;
-
+        float cardHeight = Math.min(190f, panelHeight * 0.42f);
+        float gap = Math.min(16f, panelWidth * 0.025f);
+        float cardWidth = Math.min(132f,
+            (panelWidth - 64f - Math.max(0, hand.size - 1) * gap)
+                / Math.max(1, hand.size));
         float totalWidth =
             hand.size * cardWidth +
                 Math.max(0, hand.size - 1) * gap;
-
-        float startX =
-            panelX +
-                (panelWidth - totalWidth) / 2f;
+        float startX = panelX + (panelWidth - totalWidth) / 2f;
 
         float y =
             panelY +
@@ -525,7 +524,7 @@ public class RewardScreen {
 
         font.draw(
             batch,
-            "Select one of your cards",
+            "Mandatory: pick one card, then choose its upgrade to enter the next room.",
             panelX + 30f,
             panelY + panelHeight - 70f
         );
