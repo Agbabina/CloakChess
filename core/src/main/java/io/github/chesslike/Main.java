@@ -60,7 +60,7 @@ public class Main extends Game {
 
     private void renderSlashes() {
         if (slashes.size == 0) return;
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (int i = 0; i < slashes.size; i++) {
             Slash s = slashes.get(i);
@@ -1676,7 +1676,7 @@ public class Main extends Game {
         Shockwave w = new Shockwave();
         w.x = tileCenterX(x);
         w.y = tileCenterY(y);
-        w.maxRadius = radius * Player.TILE_SIZE;
+        w.maxRadius = radius * Player.getTileSize();
         shockwaves.add(w);
     }
 
@@ -1900,7 +1900,7 @@ public class Main extends Game {
     // Poisoned tiles: bubbling toxic pools drawn right on top of the board
     private void renderPoisonTiles() {
         if (menuVisible || introActive || board == null) return;
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         int n = Player.BOARD_SIZE;
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (int x = 0; x < n; x++) {
@@ -1930,7 +1930,7 @@ public class Main extends Game {
     private void renderSpellFx() {
         boolean any = sparks.size > 0 || bolts.size > 0 || burnTurns.size > 0 || poisonTurns.size > 0 || confusedUntil.size > 0;
         if (!any) return;
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         for (int i = 0; i < enemies.size; i++) {
@@ -2103,7 +2103,7 @@ public class Main extends Game {
     private void renderEnemyCurseBadges() {
         if (enemies == null || menuVisible || introActive) return;
 
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         float r = MathUtils.clamp(ts * .13f, 9f, 14f);
 
         batch.begin();
@@ -2450,11 +2450,11 @@ public class Main extends Game {
     }
 
     private float tileCenterX(int x) {
-        return Player.getBoardX() + x * Player.TILE_SIZE + Player.TILE_SIZE / 2f;
+        return Player.getBoardX() + x * Player.getTileSize() + Player.getTileSize() / 2f;
     }
 
     private float tileCenterY(int y) {
-        return Player.getBoardY() + y * Player.TILE_SIZE + Player.TILE_SIZE / 2f;
+        return Player.getBoardY() + y * Player.getTileSize() + Player.getTileSize() / 2f;
     }
 
     private void updateArrowAnimation(float delta) {
@@ -2507,7 +2507,7 @@ public class Main extends Game {
     // Blue DEF icon on the player's tile (top-left corner) so defense is visible on the board
     private void renderDefenseIcon() {
         if (defense <= 0 || menuVisible || introActive || gameOverScreen.isVisible() || player == null) return;
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         float r = MathUtils.clamp(ts * .15f, 10f, 16f);
         batch.begin();
         drawRoundIcon(tileCenterX(player.getX()) - ts / 2f + r + 2f, tileCenterY(player.getY()) + ts / 2f - r - 2f, r, COL_DEFENSE, "DF", defense);
@@ -3200,7 +3200,7 @@ public class Main extends Game {
     private float currentCardScale() {
         float h = Gdx.graphics.getHeight();
         int n = Math.max(1, hand.size);
-        float boardRight = Player.getBoardX() + Player.BOARD_SIZE * Player.TILE_SIZE;
+        float boardRight = Player.getBoardX() + Player.BOARD_SIZE * Player.getTileSize();
         float sideSpace = Gdx.graphics.getWidth() - boardRight - 16f;
         float widthScale = sideSpace / 115f;
         float requiredHeight = 155f * (1f + (n - 1) * 0.66f);
@@ -5052,8 +5052,8 @@ public class Main extends Game {
 
         float touchX = Gdx.input.getX(), touchY = Gdx.graphics.getHeight() - Gdx.input.getY();
         if (placingTacticalMark) {
-            int markX = (int) ((touchX - Player.getBoardX()) / Player.TILE_SIZE);
-            int markY = (int) ((touchY - Player.getBoardY()) / Player.TILE_SIZE);
+            int markX = (int) ((touchX - Player.getBoardX()) / Player.getTileSize());
+            int markY = (int) ((touchY - Player.getBoardY()) / Player.getTileSize());
             if (markX < 0 || markX >= Player.BOARD_SIZE || markY < 0 || markY >= Player.BOARD_SIZE) {
                 message("Choose a tile on the board.", 1.2f);
                 return;
@@ -5161,7 +5161,7 @@ public class Main extends Game {
             return;
         }
 
-        int tx = (int) ((touchX - Player.getBoardX()) / Player.TILE_SIZE), ty = (int) ((touchY - Player.getBoardY()) / Player.TILE_SIZE);
+        int tx = (int) ((touchX - Player.getBoardX()) / Player.getTileSize()), ty = (int) ((touchY - Player.getBoardY()) / Player.getTileSize());
         boolean valid = activeCard.hasTeleportationInfusion() ? tx >= 0 && tx < Player.BOARD_SIZE && ty >= 0 && ty < Player.BOARD_SIZE : player.isValidMove(tx, ty, activeCard.getMovementRules(), board);
         if (!valid) {
             playSfx(errorSound);
@@ -5253,8 +5253,8 @@ public class Main extends Game {
             float inv = 1f - t;
             p = 1f - inv * inv * inv; // ease-out
         }
-        float ox = (moveFromX - player.getX()) * Player.TILE_SIZE * (1f - p);
-        float oy = (moveFromY - player.getY()) * Player.TILE_SIZE * (1f - p);
+        float ox = (moveFromX - player.getX()) * Player.getTileSize() * (1f - p);
+        float oy = (moveFromY - player.getY()) * Player.getTileSize() * (1f - p);
         float cx = tileCenterX(player.getX()), cy = tileCenterY(player.getY());
         tmpMat.idt().translate(cx + ox, cy + oy + arc, 0f).scale(sc, sc, 1f).translate(-cx, -cy, 0f);
         batch.setTransformMatrix(tmpMat);
@@ -6268,8 +6268,8 @@ public class Main extends Game {
         }
         victorySound.play();
         for (int i = 0; i < 10; i++) {
-            float bx = Player.getBoardX() + random.nextFloat() * Player.TILE_SIZE * Player.BOARD_SIZE;
-            float by = Player.getBoardY() + random.nextFloat() * Player.TILE_SIZE * Player.BOARD_SIZE;
+            float bx = Player.getBoardX() + random.nextFloat() * Player.getTileSize() * Player.BOARD_SIZE;
+            float by = Player.getBoardY() + random.nextFloat() * Player.getTileSize() * Player.BOARD_SIZE;
             spawnBurst(bx, by, 10, MathUtils.random(.5f, 1f), MathUtils.random(.5f, 1f), MathUtils.random(.3f, 1f), 120f);
         }
         showPopup(finalBossDefeated
@@ -6807,7 +6807,7 @@ public class Main extends Game {
     private void handleArrowInput() {
         if (!Gdx.input.justTouched()) return;
         float x = Gdx.input.getX(), y = Gdx.graphics.getHeight() - Gdx.input.getY();
-        int tx = (int) ((x - Player.getBoardX()) / Player.TILE_SIZE), ty = (int) ((y - Player.getBoardY()) / Player.TILE_SIZE);
+        int tx = (int) ((x - Player.getBoardX()) / Player.getTileSize()), ty = (int) ((y - Player.getBoardY()) / Player.getTileSize());
         if (!player.isValidArrowTarget(tx, ty)) {
             message("Invalid arrow direction!", 1.5f);
             return;
@@ -7029,8 +7029,8 @@ public class Main extends Game {
         // Place next to the enemy (flip to the left if it would leave the screen)
         float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
         float ex = tileCenterX(e.getX()), ey = tileCenterY(e.getY());
-        float bx = ex + Player.TILE_SIZE / 2f + 8f;
-        if (bx + boxW > w - 6f) bx = ex - Player.TILE_SIZE / 2f - 8f - boxW;
+        float bx = ex + Player.getTileSize() / 2f + 8f;
+        if (bx + boxW > w - 6f) bx = ex - Player.getTileSize() / 2f - 8f - boxW;
         bx = MathUtils.clamp(bx, 6f, Math.max(6f, w - boxW - 6f));
         float by = MathUtils.clamp(ey - boxH / 2f, 6f, Math.max(6f, h - boxH - 6f));
 
@@ -7192,14 +7192,14 @@ public class Main extends Game {
             float tx = tileCenterX(target[0]), ty = tileCenterY(target[1]);
             shapeRenderer.setColor(1f, .68f, .22f, .55f);
             shapeRenderer.rectLine(sx, sy, tx, ty, 3f);
-            shapeRenderer.circle(tx, ty, Player.TILE_SIZE * .13f, 18);
+            shapeRenderer.circle(tx, ty, Player.getTileSize() * .13f, 18);
             shapeRenderer.setColor(1f, .88f, .48f, .9f);
-            shapeRenderer.circle(tx, ty, Player.TILE_SIZE * .07f, 18);
+            shapeRenderer.circle(tx, ty, Player.getTileSize() * .07f, 18);
         }
         if (tacticalMarkArmed) {
             shapeRenderer.setColor(1f, .72f, .22f, .9f);
             shapeRenderer.circle(tileCenterX(tacticalMarkX), tileCenterY(tacticalMarkY),
-                Player.TILE_SIZE * .34f, 28);
+                Player.getTileSize() * .34f, 28);
         }
         shapeRenderer.end();
         batch.begin();
