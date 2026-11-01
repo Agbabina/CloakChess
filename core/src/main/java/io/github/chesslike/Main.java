@@ -33,6 +33,13 @@ public class Main extends Game {
     private BitmapFont font;
     private Board board;
     private Player player;
+    private RoguelikeBackdrop roguelikeBackdrop;
+    private static final Enemy.DeathAnimationType[] DEATH_ANIMATION_ROTATION = {
+        Enemy.DeathAnimationType.FADE, Enemy.DeathAnimationType.SHATTER,
+        Enemy.DeathAnimationType.BURN, Enemy.DeathAnimationType.SOUL,
+        Enemy.DeathAnimationType.IMPLODE
+    };
+    private int deathAnimationCursor = 0;
 
     // ---------- Capture slash FX ----------
     private static class Slash {
@@ -183,6 +190,7 @@ public class Main extends Game {
             "Enemy movement is deterministic: plan a trap, then execute.",
             "Mad Rooks cycle straight / straight / diagonal; Jesters follow a fixed pattern.",
             "TACTICAL MARK: bait the nearest enemy onto a tile once per room.",
+            "ROYAL GUARD: brace once per room; the first adjacent enemy is stunned.",
             "Tap an enemy to see its info."
         },
         {},
@@ -548,6 +556,9 @@ public class Main extends Game {
     private KingEnchantmentScreen kingEnchantmentScreen;
     private final Rectangle enchantmentsButton = new Rectangle();
     private final Rectangle tacticalMarkButton = new Rectangle();
+    private final Rectangle royalGuardButton = new Rectangle();
+    private boolean royalGuardAvailable = true;
+    private boolean royalGuardArmed = false;
     private boolean placingTacticalMark = false;
     private boolean tacticalMarkAvailable = true;
     private boolean tacticalMarkArmed = false;
@@ -741,6 +752,7 @@ public class Main extends Game {
         Card.loadTextures();
         RewardScreen.loadTextures();
         shapeRenderer = new ShapeRenderer();
+        roguelikeBackdrop = new RoguelikeBackdrop();
 
         // Readable Pixel Operator UI font.
         // Prefer the Pixel Operator font when it is present, but keep Font.ttf
@@ -2338,9 +2350,21 @@ public class Main extends Game {
             poisonTurns.remove(enemy);
             burnTurns.remove(enemy);
             playSfx(enemyDeathSound);
-            spawnCrumble(enemy.getX(), enemy.getY());
-            spawnBurst(tileCenterX(enemy.getX()), tileCenterY(enemy.getY()), 28,
-                .95f, .55f, .22f, 78f);
+            Enemy.DeathAnimationType deathStyle =
+                DEATH_ANIMATION_ROTATION[deathAnimationCursor++ % DEATH_ANIMATION_ROTATION.length];
+            enemy.setDeathAnimationType(deathStyle);
+            float deathX = tileCenterX(enemy.getX()), deathY = tileCenterY(enemy.getY());
+            switch (deathStyle) {
+                case SHATTER:
+                    spawnCrumble(enemy.getX(), enemy.getY());
+                    spawnBurst(deathX, deathY, 28, .95f, .72f, .38f, 78f);
+                    break;
+                case BURN: spawnBurst(deathX, deathY, 22, 1f, .34f, .10f, 92f); break;
+                case SOUL: spawnBurst(deathX, deathY, 20, .38f, .82f, 1f, 68f); break;
+                case IMPLODE: spawnBurst(deathX, deathY, 18, .68f, .42f, 1f, 42f); break;
+                case FADE:
+                default: spawnBurst(deathX, deathY, 14, .72f, .78f, .92f, 32f); break;
+            }
             spawnShockwave(enemy.getX(), enemy.getY(),
                 enemy.getVariant() == EnemyVariant.BOSS ? 2.2f : 1.25f);
             startShake(enemy.getVariant() == EnemyVariant.BOSS ? .45f : .16f,
@@ -4952,6 +4976,26 @@ public class Main extends Game {
         layoutEnchantmentButton();
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
+            layoutRoyalGuardButton();
+            if (!blitzMode && royalGuardButton.contains(ux, uy)) {
+                if (!royalGuardAvailable || royalGuardArmed) {
+                    playSfx(errorSound);
+                    message(royalGuardArmed ? "Royal Guard is already armed." : "Royal Guard returns next room.", 1.6f);
+                } else {
+                    royalGuardAvailable = false;
+                    royalGuardArmed = true;
+                    placingTacticalMark = false;
+                    if (activeCard != null) activeCard.setSelected(false);
+                    activeCard = null;
+                    selectedSpell = null;
+                    shootMode = false;
+                    player.setSelected(false);
+                    playSfx(blessingSound);
+                    message("ROYAL GUARD: the first enemy to reach an adjacent tile is stunned.", 2.2f);
+                }
+                clickSound.play();
+                return;
+            }
             layoutTacticalMarkButton();
             if (!blitzMode && tacticalMarkButton.contains(ux, uy)) {
                 if (!tacticalMarkAvailable) {
@@ -5953,6 +5997,17 @@ public class Main extends Game {
                 poisonTurns.put(e, Math.min(POISON_MAX_TURNS, (cur == null ? 0 : cur) + 2));
                 spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 8, .45f, .95f, .3f, 40f);
             }
+        }
+
+        if (e.isAlive() && royalGuardArmed
+            && Math.max(Math.abs(e.getX() - player.getX()), Math.abs(e.getY() - player.getY())) <= 1) {
+            royalGuardArmed = false;
+            stunnedTurns.put(e, 1);
+            spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 18, .42f, .82f, 1f, 58f);
+            spawnFloat("ROYAL GUARD", tileCenterX(e.getX()), tileCenterY(e.getY()) + 34f, .45f, .88f, 1f);
+            message("Royal Guard interrupted " + e.getDisplayName() + "!", 2f);
+            finishActiveEnemy();
+            return;
         }
 
         if (e.isAlive() && enemyCapturedPlayer(e)) {
@@ -7104,6 +7159,38 @@ public class Main extends Game {
         tacticalMarkArmed = false;
         tacticalMarkX = tacticalMarkY = -1;
         tacticalMarkTarget = null;
+        royalGuardAvailable = true;
+        royalGuardArmed = false;
+    }
+
+    private void layoutRoyalGuardButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        royalGuardButton.set(Math.max(10f, w - 194f), Math.max(10f, h - 224f), 176f, 38f);
+    }
+
+    private void renderRoyalGuardButton() {
+        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+            || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        layoutRoyalGuardButton();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(royalGuardArmed ? .12f : .055f, royalGuardArmed ? .22f : .065f,
+            royalGuardArmed ? .28f : .10f, .96f);
+        shapeRenderer.rect(royalGuardButton.x, royalGuardButton.y, royalGuardButton.width, royalGuardButton.height);
+        shapeRenderer.setColor(royalGuardAvailable ? .35f : .30f, royalGuardAvailable ? .82f : .35f,
+            royalGuardAvailable ? 1f : .38f, 1f);
+        shapeRenderer.rect(royalGuardButton.x, royalGuardButton.y + royalGuardButton.height - 3f,
+            royalGuardButton.width, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.46f);
+        font.setColor(royalGuardArmed ? new Color(.55f, .88f, 1f, 1f)
+            : royalGuardAvailable ? new Color(.58f, .84f, 1f, 1f) : Color.GRAY);
+        String label = royalGuardArmed ? "ROYAL GUARD  ARMED" :
+            royalGuardAvailable ? "ROYAL GUARD  1/ROOM" : "GUARD SPENT";
+        font.draw(batch, label, royalGuardButton.x + 10f, royalGuardButton.y + 24f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
     }
 
     private void layoutTacticalMarkButton() {
@@ -7353,6 +7440,7 @@ public class Main extends Game {
         updateSpellFx(delta);
         updateFloats(delta);
         updateSlashes(delta);
+        roguelikeBackdrop.render(batch, shapeRenderer, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), uiTime);
         board.render();
         renderPoisonTiles();
         renderEnemyIntents();
@@ -7419,6 +7507,7 @@ public class Main extends Game {
         renderCorruptionHud();
         renderEnchantmentButton();
         renderTacticalMarkButton();
+        renderRoyalGuardButton();
         kingEnchantmentScreen.render(batch, shapeRenderer, font, kingEnchantments);
         rewardScreen.render(hand);
         if (shopScreen.isVisible()) shopScreen.render(gold);
@@ -7516,6 +7605,7 @@ public class Main extends Game {
     public void dispose() {
         if (batch != null) batch.dispose();
         if (shapeRenderer != null) shapeRenderer.dispose();
+        if (roguelikeBackdrop != null) roguelikeBackdrop.dispose();
         if (font != null) font.dispose();
         if (board != null) board.dispose();
         if (player != null) player.dispose();
