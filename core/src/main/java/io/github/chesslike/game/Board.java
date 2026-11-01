@@ -50,7 +50,7 @@ public class Board {
     public void render() {
         batch.begin();
         float tileSize = Player.getTileSize();
-        boardX = (Gdx.graphics.getWidth() - SIZE * tileSize) / 2f;
+        boardX = Player.getBoardX();
         // Keep board coordinates identical to Player.getBoardY(); tiles and
         // pieces must share the exact same origin or the king appears misaligned.
         boardY = (Gdx.graphics.getHeight() - SIZE * tileSize) / 2f;
