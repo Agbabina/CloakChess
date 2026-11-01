@@ -181,6 +181,7 @@ public class Main extends Game {
             "Pick a card, tap your piece, tap a tile.",
             "Gold intent arrows reveal each enemy's next tile.",
             "Enemy movement is deterministic: plan a trap, then execute.",
+            "Mad Rooks cycle straight / straight / diagonal; Jesters follow a fixed pattern.",
             "TACTICAL MARK: bait the nearest enemy onto a tile once per room.",
             "Tap an enemy to see its info."
         },
@@ -7469,7 +7470,7 @@ public class Main extends Game {
             "Bishop - diagonal hunter",
             "Rook - straight-line hunter",
             "Jester - pattern movement",
-            "Mad Rook - bent-rook movement pattern",
+            "Mad Rook - horizontal / vertical / diagonal cycle",
             "Chameleon - Knight / Bishop / Rook cycle",
             "Armored - +1 HP, resists damage",
             "Phantom - visible Knight / Bishop / Rook cycle",
