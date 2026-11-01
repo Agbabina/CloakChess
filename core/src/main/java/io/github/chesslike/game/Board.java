@@ -7,7 +7,7 @@ import java.util.Random;
 
 public class Board {
     public static final int SIZE = 6;
-    public static final float TILE_SIZE = 100f;
+    public static final float TILE_SIZE = Player.TILE_SIZE;
 
     private final Texture darkTile;
     private final Texture lightTile;
