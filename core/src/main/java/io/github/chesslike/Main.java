@@ -7356,10 +7356,10 @@ public class Main extends Game {
             "Bishop - diagonal hunter",
             "Rook - straight-line hunter",
             "Jester - pattern movement",
-            "Mad Rook - unpredictable movement",
-            "Chameleon - changes movement",
+            "Mad Rook - bent-rook movement pattern",
+            "Chameleon - Knight / Bishop / Rook cycle",
             "Armored - +1 HP, resists damage",
-            "Phantom - changes movement each turn",
+            "Phantom - visible Knight / Bishop / Rook cycle",
             "Berserker - moves twice when wounded",
             "Plaguebearer - leaves a toxic tile",
             "FLOOR 5 BOSS - 12 HP, moves twice"
