@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
 
 public class Player {
 
@@ -104,9 +105,12 @@ public class Player {
     public static float getBoardX() {
         float width = Gdx.graphics.getWidth();
         float boardWidth = BOARD_SIZE * getTileSize();
-        float handClearance = width >= 1100f ? Math.min(120f, width * .085f)
-            : width >= 850f ? width * .055f : 0f;
-        return Math.max(8f, (width - boardWidth) / 2f - handClearance);
+        // Keep the board biased to the right, but reserve a narrow safety gap
+        // before the bottom-right card hand. The shift scales down on tablets.
+        float rightShift = width >= 1100f ? Math.min(72f, width * .052f)
+            : width >= 850f ? width * .03f : 0f;
+        float centeredX = (width - boardWidth) / 2f;
+        return MathUtils.clamp(centeredX + rightShift, 8f, Math.max(8f, width - boardWidth - 8f));
     }
 
     public static float getBoardY() {
