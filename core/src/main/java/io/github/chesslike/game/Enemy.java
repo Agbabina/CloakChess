@@ -35,7 +35,7 @@ public class Enemy {
     private EnemyCurse curse = null;
 
     // MOVE / PUSH ANIMATION
-    private static final float MOVE_DURATION = 0.25f;
+    private static final float MOVE_DURATION = 0.22f;
     private static final float PUSH_DURATION = 0.15f;
 
     private boolean moving = false;
@@ -410,10 +410,12 @@ public class Enemy {
             return;
         }
 
-        float smooth = progress * progress * (3f - 2f * progress);
+        // Match the player's restrained ease-out slide; enemies never scale or bounce.
+        float inv = 1f - progress;
+        float eased = 1f - inv * inv * inv;
 
-        renderX = startX + (targetX - startX) * smooth;
-        renderY = startY + (targetY - startY) * smooth;
+        renderX = startX + (targetX - startX) * eased;
+        renderY = startY + (targetY - startY) * eased;
     }
 
     // CLICK
