@@ -6045,7 +6045,9 @@ public class Main extends Game {
             tacticalMarkX = tacticalMarkY = -1;
             message("TACTICAL MARK CONSUMED.", 1.4f);
         }
-        if (finished != null && finished.isAlive() && !enemyCapturedPlayer(finished)) {
+        Integer activeStun = finished == null ? null : stunnedTurns.get(finished);
+        if (finished != null && finished.isAlive() && !enemyCapturedPlayer(finished)
+            && (activeStun == null || activeStun <= 0)) {
             applyEnemyArchetypeAttack(finished);
         }
         activeTurnEnemy = null;
