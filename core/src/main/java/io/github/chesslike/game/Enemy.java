@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.utils.Array;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -209,8 +210,12 @@ public class Enemy {
         return chameleonRulesFor(chameleonForm);
     }
 
-    /** Returns the exact destination the enemy will choose on its next turn. */
+    /** Returns the exact next destination, excluding squares occupied by other living enemies. */
     public int[] previewMoveTowards(int playerX, int playerY) {
+        return previewMoveTowards(playerX, playerY, null);
+    }
+
+    public int[] previewMoveTowards(int playerX, int playerY, Array<Enemy> roster) {
         if (!alive || falling || skipNextMove) return null;
         MovementRules rules = movementRules;
         if (movementType == Card.MovementType.CHAMELEON || variant == EnemyVariant.PHANTOM) {
@@ -221,6 +226,7 @@ public class Enemy {
         for (int tx = 0; tx < BOARD_SIZE; tx++) {
             for (int ty = 0; ty < BOARD_SIZE; ty++) {
                 if (!rules.isValidMove(x, y, tx, ty, BOARD_SIZE)) continue;
+                if (roster != null && isOccupiedByOtherEnemy(tx, ty, roster)) continue;
                 int distance = Math.abs(tx - playerX) + Math.abs(ty - playerY);
                 if (distance < bestDistance) {
                     bestDistance = distance;
@@ -229,6 +235,14 @@ public class Enemy {
             }
         }
         return best;
+    }
+
+    private boolean isOccupiedByOtherEnemy(int tx, int ty, Array<Enemy> roster) {
+        for (int i = 0; i < roster.size; i++) {
+            Enemy other = roster.get(i);
+            if (other != this && other.isAlive() && other.getX() == tx && other.getY() == ty) return true;
+        }
+        return false;
     }
 
     // FALL-IN
@@ -350,63 +364,29 @@ public class Enemy {
         batch.setColor(1f, 1f, 1f, 1f);
     }
 
-    // MOVEMENT TOWARDS PLAYER
+    // Execution uses the same destination as the intent preview.
     public boolean moveTowards(int playerX, int playerY) {
-        if (!alive || falling) {
-            return false;
-        }
+        return moveTowards(playerX, playerY, null);
+    }
 
-        // Pushed enemies lose exactly one move
+    public boolean moveTowards(int playerX, int playerY, Array<Enemy> roster) {
+        if (!alive || falling) return false;
         if (skipNextMove) {
             skipNextMove = false;
             return false;
         }
-
-        // Chameleon / Phantom rotate Knight -> Bishop -> Rook predictably.
+        int[] planned = previewMoveTowards(playerX, playerY, roster);
+        if (planned == null) return false;
         if (movementType == Card.MovementType.CHAMELEON || variant == EnemyVariant.PHANTOM) {
             chameleonForm = (chameleonForm + 1) % 3;
             movementRules = chameleonRulesFor(chameleonForm);
         }
-
-        List<int[]> legalMoves = new ArrayList<>();
-
-        for (int tx = 0; tx < BOARD_SIZE; tx++) {
-            for (int ty = 0; ty < BOARD_SIZE; ty++) {
-                if (movementRules.isValidMove(x, y, tx, ty, BOARD_SIZE)) {
-                    legalMoves.add(new int[] {tx, ty});
-                }
-            }
-        }
-
-        if (legalMoves.isEmpty()) {
-            return false;
-        }
-
-        int[] bestMove = null;
-        int bestDistance = Integer.MAX_VALUE;
-
-        for (int[] move : legalMoves) {
-            int distance = Math.abs(move[0] - playerX) + Math.abs(move[1] - playerY);
-
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestMove = move;
-            }
-        }
-
-        if (bestMove == null) {
-            return false;
-        }
-
-        moveTo(bestMove[0], bestMove[1], MOVE_DURATION);
-
-        // Jester cycles its pattern after every move it makes
+        moveTo(planned[0], planned[1], MOVE_DURATION);
         if (movementRules instanceof JesterRules) {
             ((JesterRules) movementRules).advanceTurn();
         } else if (movementRules instanceof MadRookRules) {
             ((MadRookRules) movementRules).advanceTurn();
         }
-
         return true;
     }
 
