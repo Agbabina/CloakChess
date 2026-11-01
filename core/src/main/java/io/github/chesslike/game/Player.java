@@ -105,12 +105,12 @@ public class Player {
     public static float getBoardX() {
         float width = Gdx.graphics.getWidth();
         float boardWidth = BOARD_SIZE * getTileSize();
-        // Keep the board biased to the right, but reserve a narrow safety gap
-        // before the bottom-right card hand. The shift scales down on tablets.
-        float rightShift = width >= 1100f ? Math.min(72f, width * .052f)
-            : width >= 850f ? width * .03f : 0f;
+        // Move the board right relative to its previous left-biased position,
+        // while retaining some clearance for the hand on the right.
+        float leftInset = width >= 1100f ? Math.min(60f, width * .044f)
+            : width >= 850f ? width * .025f : 0f;
         float centeredX = (width - boardWidth) / 2f;
-        return MathUtils.clamp(centeredX + rightShift, 8f, Math.max(8f, width - boardWidth - 8f));
+        return MathUtils.clamp(centeredX - leftInset, 8f, Math.max(8f, width - boardWidth - 8f));
     }
 
     public static float getBoardY() {
