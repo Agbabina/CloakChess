@@ -4958,8 +4958,10 @@ public class Main extends Game {
                     message("Tactical Mark is spent until the next room.", 1.6f);
                 } else {
                     placingTacticalMark = !placingTacticalMark;
+                    if (activeCard != null) activeCard.setSelected(false);
                     activeCard = null;
                     selectedSpell = null;
+                    shootMode = false;
                     player.setSelected(false);
                     message(placingTacticalMark ? "TACTICAL MARK: tap an empty tile to lure the nearest enemy." : "Tactical Mark cancelled.", 2f);
                 }
