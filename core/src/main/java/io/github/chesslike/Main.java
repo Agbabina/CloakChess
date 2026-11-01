@@ -3940,6 +3940,9 @@ public class Main extends Game {
         savePrefs.putInteger("mana", mana);
         savePrefs.putInteger("bounceArrows", bounceArrows);
         savePrefs.putInteger("runBonusSouls", runBonusSouls);
+        String savedOath = kingEnchantments.getActiveEnchantments().isEmpty()
+            ? "" : kingEnchantments.getActiveEnchantments().iterator().next().name();
+        savePrefs.putString("kingEnchantment", savedOath);
         for (int i = 0; i < PACT_COUNT; i++) savePrefs.putBoolean("runPact" + i, runPact[i]);
         savePrefs.putInteger("objectiveType", objectiveType);
         savePrefs.putInteger("objectiveTarget", objectiveTarget);
@@ -3992,6 +3995,12 @@ public class Main extends Game {
         evtVisible = false;
         omen = OMEN_NONE;
         difficulty = Math.max(1, savePrefs.getInteger("difficulty", 1));
+        kingEnchantments.resetRun();
+        String savedOath = savePrefs.getString("kingEnchantment", "");
+        if (!savedOath.isEmpty()) {
+            try { kingEnchantments.enchant(KingEnchantmentSystem.Enchantment.valueOf(savedOath)); }
+            catch (IllegalArgumentException ignored) { }
+        }
         playerHp = Math.max(1, savePrefs.getInteger("playerHp", 3));
         playerMaxHp = Math.max(playerHp, savePrefs.getInteger("playerMaxHp", 3));
         defense = MathUtils.clamp(savePrefs.getInteger("defense", 0), 0, MAX_DEFENSE);
@@ -4010,6 +4019,7 @@ public class Main extends Game {
 
         if (player != null) player.dispose();
         player = new Player(2, 2);
+        player.setCorruption(corruption);
 
         hand.clear();
         cardModifiers.clear();
@@ -4069,7 +4079,8 @@ public class Main extends Game {
         rollPoison();
         generateEnemiesForCurrentRoom();
         kingEnchantments.beginRoom();
-        kingEnchantmentScreen.show();
+        if (kingEnchantments.getActiveEnchantments().isEmpty()) kingEnchantmentScreen.show();
+        else kingEnchantmentScreen.hide();
         positionCards();
         if (backgroundMusic != null && !backgroundMusic.isPlaying()) backgroundMusic.play();
         roomRerolled = savePrefs.getBoolean("roomRerolled", false);
@@ -4415,6 +4426,8 @@ public class Main extends Game {
 
         rollPoison();
         generateEnemiesForCurrentRoom();
+        kingEnchantments.beginRoom();
+        if (!blitzMode) kingEnchantmentScreen.show();
         positionCards();
 
         if (backgroundMusic != null && !backgroundMusic.isPlaying()) {
