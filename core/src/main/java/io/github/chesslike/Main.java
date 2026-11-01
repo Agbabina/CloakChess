@@ -4985,27 +4985,7 @@ public class Main extends Game {
                     }
                     activeCard = c;
                     c.setSelected(true);
-                    player.setSelected(true);
-                    kingCardCycleIndex = hand.indexOf(c, true);
-                    message(c.getName() + " selected — tap a destination", 1.5f);
-                    hitCard = true;
-                    break;
-                }
-            }
-            if (hitCard) {
-                tooltipEnemy = null;
-                return;
-            }
-            Enemy tapped = null;
-            for (int i = 0; i < enemies.size; i++) {
-                Enemy e = enemies.get(i);
-                if (e.isAlive() && !e.isFalling() && e.isClicked(touchX, touchY)) {
-                    tapped = e;
-                    break;
-                }
-            }
-            if (tapped != null) {
-                clickSound.play();
+           1qR     clickSound.play();
                 tooltipEnemy = tapped != tooltipEnemy ? tapped : null; // tap again to close
                 return;
             }
