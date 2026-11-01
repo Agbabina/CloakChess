@@ -29,13 +29,13 @@ public final class KingEnchantmentScreen {
         float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
         float pw = Math.min(780f, w - 28f), ph = Math.min(560f, h - 28f);
         float px = (w - pw) / 2f, py = (h - ph) / 2f;
-        float gap = 12f, cardW = (pw - 44f - gap) / 2f, cardH = Math.min(112f, (ph - 150f) / 3f);
+        float gap = 12f, cardW = (pw - 44f - gap) / 2f, cardH = Math.min(112f, (ph - 180f) / 3f);
         float startY = py + ph - 112f - cardH;
         for (int i = 0; i < options.length; i++) {
             int col = i % 2, row = i / 2;
             options[i].set(px + 14f + col * (cardW + gap), startY - row * (cardH + 10f), cardW, cardH);
         }
-        closeButton.set(px + pw - 150f, py + 14f, 136f, 38f);
+        closeButton.set(px + pw - 150f, py + 7f, 136f, 32f);
         return new Rectangle(px, py, pw, ph);
     }
 
@@ -112,7 +112,7 @@ public final class KingEnchantmentScreen {
         font.getData().setScale(.46f);
         font.setColor(Color.WHITE);
         font.draw(batch, chosen ? "CLOSE" : "PICK AN OATH TO BEGIN",
-            closeButton.x + 8f, closeButton.y + 24f);
+            closeButton.x + 8f, closeButton.y + 21f);
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
         batch.end();
