@@ -20,7 +20,7 @@ public class Enemy {
     private MovementRules movementRules;
 
     private static final int BOARD_SIZE = Board.SIZE;
-    private static final int TILE_SIZE = (int) Player.TILE_SIZE;
+    private static float tileSize() { return Player.getTileSize(); }
 
     private boolean alive = true;
 
@@ -92,8 +92,8 @@ public class Enemy {
         texture = new Texture(texturePath);
         texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
-        renderX = getBoardX() + x * TILE_SIZE;
-        renderY = getBoardY() + y * TILE_SIZE;
+        renderX = getBoardX() + x * tileSize();
+        renderY = getBoardY() + y * tileSize();
     }
 
     private static EnemyVariant rollVariant(int room) {
@@ -283,11 +283,11 @@ public class Enemy {
 
         float t = fallDelay > 0f ? 0f : Math.min(1f, fallTimer / FALL_DURATION);
 
-        float w = TILE_SIZE * 0.85f * (0.3f + 0.7f * t);
+        float w = tileSize() * 0.85f * (0.3f + 0.7f * t);
         float h = w * 0.45f;
 
-        float cx = renderX + TILE_SIZE / 2f;
-        float cy = renderY + TILE_SIZE / 2f - TILE_SIZE * 0.25f;
+        float cx = renderX + tileSize() / 2f;
+        float cy = renderY + tileSize() / 2f - tileSize() * 0.25f;
 
         shapes.setColor(0.85f, 0.2f, 0.2f, 0.15f + 0.45f * t);
         shapes.ellipse(cx - w / 2f, cy - h / 2f, w, h);
@@ -307,8 +307,8 @@ public class Enemy {
 
         updateAnimation();
 
-        float pieceSize = Player.TILE_SIZE * 0.90f;
-        float offset = (Player.TILE_SIZE - pieceSize) / 2f;
+        float pieceSize = Player.tileSize() * 0.90f;
+        float offset = (Player.tileSize() - pieceSize) / 2f;
 
         switch (variant) {
             case ARMORED: batch.setColor(.72f, .80f, .92f, 1f); break;
@@ -404,8 +404,8 @@ public class Enemy {
         x = tileX;
         y = tileY;
 
-        targetX = getBoardX() + x * TILE_SIZE;
-        targetY = getBoardY() + y * TILE_SIZE;
+        targetX = getBoardX() + x * tileSize();
+        targetY = getBoardY() + y * tileSize();
 
         activeDuration = duration;
         moveTimer = 0f;
@@ -415,13 +415,15 @@ public class Enemy {
     // Instantly place the sprite on the current tile (used by teleports like Confuse)
     private void snapToTile() {
         moving = false;
-        renderX = getBoardX() + x * TILE_SIZE;
-        renderY = getBoardY() + y * TILE_SIZE;
+        renderX = getBoardX() + x * tileSize();
+        renderY = getBoardY() + y * tileSize();
     }
 
     // ANIMATION
     private void updateAnimation() {
         if (!moving) {
+            renderX = getBoardX() + x * tileSize();
+            renderY = getBoardY() + y * tileSize();
             return;
         }
 
@@ -453,13 +455,13 @@ public class Enemy {
             return false;
         }
 
-        float enemyX = getBoardX() + x * TILE_SIZE;
-        float enemyY = getBoardY() + y * TILE_SIZE;
+        float enemyX = getBoardX() + x * tileSize();
+        float enemyY = getBoardY() + y * tileSize();
 
         return screenX >= enemyX
-            && screenX <= enemyX + TILE_SIZE
+            && screenX <= enemyX + tileSize()
             && screenY >= enemyY
-            && screenY <= enemyY + TILE_SIZE;
+            && screenY <= enemyY + tileSize();
     }
 
     // GETTERS
