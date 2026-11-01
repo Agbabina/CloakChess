@@ -630,6 +630,10 @@ public class Main extends Game {
     private boolean moveAnimActive = false;
     private boolean moveAnimJump = false;
     private boolean playerTransformApplied = false;
+    private boolean retreatAnimActive = false;
+    private float retreatAnimT = 0f;
+    private int retreatFromX, retreatFromY;
+    private static final float RETREAT_ANIM_DURATION = .18f;
     private float moveAnimT = 0f, moveAnimDur = SLIDE_DURATION;
     private int moveFromX, moveFromY;
     private Card moveAnimCard;
@@ -5293,21 +5297,37 @@ public class Main extends Game {
         updateObjectiveProgress();
     }
 
+    private void updateRetreatAnim(float delta) {
+        if (!retreatAnimActive) return;
+        retreatAnimT += delta;
+        if (retreatAnimT >= RETREAT_ANIM_DURATION) retreatAnimActive = false;
+    }
+
     private void beginPlayerAnim() {
-        if (!moveAnimActive) return;
-        float t = MathUtils.clamp(moveAnimT / moveAnimDur, 0f, 1f);
+        if (!moveAnimActive && !retreatAnimActive) return;
+        boolean retreat = !moveAnimActive && retreatAnimActive;
+        float t = retreat
+            ? MathUtils.clamp(retreatAnimT / RETREAT_ANIM_DURATION, 0f, 1f)
+            : MathUtils.clamp(moveAnimT / moveAnimDur, 0f, 1f);
         float p, arc = 0f, sc = 1f;
-        if (moveAnimJump) {
-            p = (float) Math.pow(t, 1.5f); // slow rise, fast fall = smash
-            float s = MathUtils.sin(MathUtils.PI * p);
-            arc = JUMP_HEIGHT * s;
-            sc = 1f + 0.3f * s;
+        int fromX = retreat ? retreatFromX : moveFromX;
+        int fromY = retreat ? retreatFromY : moveFromY;
+        if (retreat) {
+            p = t * t * (3f - 2f * t);
+            float recoil = MathUtils.sin(MathUtils.PI * p);
+            arc = Player.getTileSize() * .12f * recoil;
+            sc = 1f - .06f * recoil;
+        } else if (moveAnimJump) {
+            p = (float) Math.pow(t, 1.5f);
+            float jump = MathUtils.sin(MathUtils.PI * p);
+            arc = JUMP_HEIGHT * jump;
+            sc = 1f + 0.3f * jump;
         } else {
             float inv = 1f - t;
-            p = 1f - inv * inv * inv; // ease-out
+            p = 1f - inv * inv * inv;
         }
-        float ox = (moveFromX - player.getX()) * Player.getTileSize() * (1f - p);
-        float oy = (moveFromY - player.getY()) * Player.getTileSize() * (1f - p);
+        float ox = (fromX - player.getX()) * Player.getTileSize() * (1f - p);
+        float oy = (fromY - player.getY()) * Player.getTileSize() * (1f - p);
         float cx = tileCenterX(player.getX()), cy = tileCenterY(player.getY());
         tmpMat.idt().translate(cx + ox, cy + oy + arc, 0f).scale(sc, sc, 1f).translate(-cx, -cy, 0f);
         batch.setTransformMatrix(tmpMat);
@@ -6437,6 +6457,10 @@ public class Main extends Game {
             }
         }
         if (bestX < 0) return false;
+        retreatFromX = px;
+        retreatFromY = py;
+        retreatAnimT = 0f;
+        retreatAnimActive = true;
         player.setPosition(bestX, bestY);
         spawnBurst(tileCenterX(px), tileCenterY(py), 12, 1f, .32f, .25f, 48f);
         spawnBurst(tileCenterX(bestX), tileCenterY(bestY), 10, .35f, .8f, 1f, 38f);
@@ -7570,6 +7594,7 @@ public class Main extends Game {
         updateMoveAnim(delta);
         updatePendingArrivals();
         updateEnemyTurnSequence();
+        updateRetreatAnim(delta);
         updateShockwaves(delta);
         updateDebris(delta);
         updateSpellFx(delta);
