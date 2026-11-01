@@ -202,7 +202,7 @@ public class Enemy {
 
     /** Returns the exact destination the enemy will choose on its next turn. */
     public int[] previewMoveTowards(int playerX, int playerY) {
-        if (!alive || falling || skipNextMove || movementRules instanceof JesterRules) return null;
+        if (!alive || falling || skipNextMove) return null;
         MovementRules rules = movementRules;
         if (movementType == Card.MovementType.CHAMELEON || variant == EnemyVariant.PHANTOM) {
             rules = chameleonRulesFor(chameleonForm + 1);
@@ -381,6 +381,8 @@ public class Enemy {
         // Jester cycles its pattern after every move it makes
         if (movementRules instanceof JesterRules) {
             ((JesterRules) movementRules).advanceTurn();
+        } else if (movementRules instanceof MadRookRules) {
+            ((MadRookRules) movementRules).advanceTurn();
         }
 
         return true;
