@@ -1556,10 +1556,14 @@ public class Main extends Game {
         handPageIndex = Math.floorMod(handPageIndex, pageCount);
 
         float screenW = Gdx.graphics.getWidth();
-        float screenH = Gdx.graphics.getHeight();
-        float scale = Math.min(currentCardScale(), Math.min(1f, screenW / 1100f));
-        float cw = 105f * scale;
-        float ch = 142f * scale;
+        // Card slots use the same dimensions as the 256x328 artwork rendered at half size.
+        // Clamp here as well as in Card.setLayoutScale so slot spacing and hitboxes agree
+        // on narrow mobile viewports.
+        float scale = MathUtils.clamp(
+            Math.min(currentCardScale(), Math.min(1f, screenW / 1100f)), 0.45f, 1f
+        );
+        float cw = Card.BASE_WIDTH * scale;
+        float ch = Card.BASE_HEIGHT * scale;
         float gap = 8f * scale;
         float buttonW = 42f * scale;
         float buttonH = 54f * scale;
@@ -4985,7 +4989,27 @@ public class Main extends Game {
                     }
                     activeCard = c;
                     c.setSelected(true);
-           1qR     clickSound.play();
+                    player.setSelected(true);
+                    kingCardCycleIndex = hand.indexOf(c, true);
+                    message(c.getName() + " selected — tap a destination", 1.5f);
+                    hitCard = true;
+                    break;
+                }
+            }
+            if (hitCard) {
+                tooltipEnemy = null;
+                return;
+            }
+            Enemy tapped = null;
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy e = enemies.get(i);
+                if (e.isAlive() && !e.isFalling() && e.isClicked(touchX, touchY)) {
+                    tapped = e;
+                    break;
+                }
+            }
+            if (tapped != null) {
+                clickSound.play();
                 tooltipEnemy = tapped != tooltipEnemy ? tapped : null; // tap again to close
                 return;
             }
