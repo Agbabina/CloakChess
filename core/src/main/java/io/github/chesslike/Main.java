@@ -1166,6 +1166,14 @@ public class Main extends Game {
             13f
         );
 
+        // Floor/room badge backing, drawn before the text batch starts.
+        shapeRenderer.setColor(.035f, .045f, .07f, .95f);
+        shapeRenderer.rect(x0 + 232f, y0 + 7f, 110f, 24f);
+        shapeRenderer.setColor(FloorProgression.isBossRoom(difficulty) ? .85f : .35f,
+            FloorProgression.isBossRoom(difficulty) ? .18f : .48f,
+            FloorProgression.isBossRoom(difficulty) ? .22f : .62f, .95f);
+        shapeRenderer.rect(x0 + 232f, y0 + 7f, 3f, 24f);
+
         shapeRenderer.end();
 
         // ---------------------------------------------------------
@@ -1288,15 +1296,6 @@ public class Main extends Game {
             gg,
             gb
         );
-
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(.035f, .045f, .07f, .95f);
-        shapeRenderer.rect(x0 + 232f, y0 + 7f, 110f, 24f);
-        shapeRenderer.setColor(FloorProgression.isBossRoom(difficulty) ? .85f : .35f,
-            FloorProgression.isBossRoom(difficulty) ? .18f : .48f,
-            FloorProgression.isBossRoom(difficulty) ? .22f : .62f, .95f);
-        shapeRenderer.rect(x0 + 232f, y0 + 7f, 3f, 24f);
-        shapeRenderer.end();
 
         hudText(
             "FLOOR / ROOM",
