@@ -103,6 +103,7 @@ public class Main extends Game {
     // ---------- Defense ----------
     private static final int MAX_DEFENSE = 2;
     private int defense = 0;
+    private boolean resolvingFork = false;
     private int frenzyTurns = 0;
     private int flawlessStreak = 0;
     private int shopRerolls = 0;
@@ -902,6 +903,41 @@ public class Main extends Game {
         }
     }
 
+    // Segmented bars make each HP/mana unit readable at a glance on small screens.
+    private void drawSegmentedHudBar(
+        float x, float y, float w, float h,
+        float shown, float actual, int max,
+        float r, float g, float b
+    ) {
+        max = Math.max(1, max);
+        float gap = Math.min(3f, w / max * .12f);
+        float segmentW = (w - gap * (max - 1)) / max;
+        for (int i = 0; i < max; i++) {
+            float sx = x + i * (segmentW + gap);
+            float shownFill = MathUtils.clamp(shown - i, 0f, 1f);
+            float actualFill = MathUtils.clamp(actual - i, 0f, 1f);
+
+            shapeRenderer.setColor(0.025f, 0.035f, 0.055f, 1f);
+            shapeRenderer.rect(sx - 1f, y - 1f, segmentW + 2f, h + 2f);
+            shapeRenderer.setColor(0.10f, 0.13f, 0.19f, 1f);
+            shapeRenderer.rect(sx, y, segmentW, h);
+
+            if (shownFill > 0f) {
+                shapeRenderer.setColor(r, g, b, 1f);
+                shapeRenderer.rect(sx, y, segmentW * shownFill, h);
+                shapeRenderer.setColor(1f, 1f, 1f, .17f);
+                shapeRenderer.rect(sx, y + h * .68f, segmentW * shownFill, h * .16f);
+            }
+
+            // A subtle pale tail makes recent healing/damage animation legible.
+            if (actualFill > shownFill) {
+                shapeRenderer.setColor(1f, 1f, 1f, .22f);
+                shapeRenderer.rect(sx + segmentW * shownFill, y,
+                    segmentW * (actualFill - shownFill), h);
+            }
+        }
+    }
+
     private void renderHud() {
         float delta = Gdx.graphics.getDeltaTime();
         float screenH = Gdx.graphics.getHeight();
@@ -1006,30 +1042,16 @@ public class Main extends Game {
                 ? .78f + .22f * MathUtils.sin(uiTime * 7f)
                 : 1f;
 
-        drawPillBar(
-            x0 + 44f,
-            y0 + 53f,
-            158f,
-            17f,
-            hudHp,
-            playerHp,
-            maxHp,
-            .90f * lowPulse,
-            .20f * lowPulse,
-            .23f * lowPulse
+        drawSegmentedHudBar(
+            x0 + 44f, y0 + 53f, 158f, 17f,
+            hudHp, playerHp, maxHp,
+            .90f * lowPulse, .20f * lowPulse, .23f * lowPulse
         );
 
-        drawPillBar(
-            x0 + 44f,
-            y0 + 29f,
-            158f,
-            15f,
-            hudMana,
-            mana,
-            maxMana,
-            .22f,
-            .50f,
-            .95f
+        drawSegmentedHudBar(
+            x0 + 44f, y0 + 29f, 158f, 15f,
+            hudMana, mana, maxMana,
+            .22f, .50f, .95f
         );
 
         // ---------------------------------------------------------
@@ -1044,14 +1066,17 @@ public class Main extends Game {
             shapeRenderer.circle(px, py, 8f, 20);
 
             if (i < defense) {
-                shapeRenderer.setColor(.35f, .65f, 1f, 1f);
-                shapeRenderer.circle(px, py, 6.2f, 20);
-
-                shapeRenderer.setColor(1f, 1f, 1f, .20f);
-                shapeRenderer.circle(px - 1.5f, py + 1.5f, 2.2f, 12);
+                shapeRenderer.setColor(.18f, .34f, .58f, 1f);
+                shapeRenderer.circle(px, py, 8f, 6);
+                shapeRenderer.setColor(.40f, .72f, 1f, 1f);
+                shapeRenderer.circle(px, py, 6.1f, 6);
+                shapeRenderer.setColor(.88f, .96f, 1f, .9f);
+                shapeRenderer.circle(px - 1.5f, py + 1.7f, 2f, 10);
             } else {
-                shapeRenderer.setColor(.12f, .15f, .22f, 1f);
-                shapeRenderer.circle(px, py, 6.2f, 20);
+                shapeRenderer.setColor(.10f, .13f, .20f, 1f);
+                shapeRenderer.circle(px, py, 7.5f, 6);
+                shapeRenderer.setColor(.18f, .22f, .30f, 1f);
+                shapeRenderer.circle(px, py, 5.6f, 6);
             }
         }
 
@@ -1123,7 +1148,9 @@ public class Main extends Game {
         float coinW =
             7f * (.3f + .7f * Math.abs(MathUtils.cos(uiTime * 2.5f)));
 
-        shapeRenderer.setColor(.35f, .24f, .04f, 1f);
+        shapeRenderer.setColor(.24f, .15f, .025f, 1f);
+        shapeRenderer.circle(x0 + 275f, y0 + 52f, 11f + goldPunch * 2f, 28);
+        shapeRenderer.setColor(.68f, .43f, .08f, 1f);
         shapeRenderer.ellipse(
             x0 + 275f - coinW - 1f,
             y0 + 52f - 7f,
@@ -1131,7 +1158,7 @@ public class Main extends Game {
             16f
         );
 
-        shapeRenderer.setColor(1f, .82f, .25f, 1f);
+        shapeRenderer.setColor(1f, .86f, .32f, 1f);
         shapeRenderer.ellipse(
             x0 + 275f - coinW,
             y0 + 52f - 6f,
@@ -1262,14 +1289,23 @@ public class Main extends Game {
             gb
         );
 
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(.035f, .045f, .07f, .95f);
+        shapeRenderer.rect(x0 + 232f, y0 + 7f, 110f, 24f);
+        shapeRenderer.setColor(FloorProgression.isBossRoom(difficulty) ? .85f : .35f,
+            FloorProgression.isBossRoom(difficulty) ? .18f : .48f,
+            FloorProgression.isBossRoom(difficulty) ? .22f : .62f, .95f);
+        shapeRenderer.rect(x0 + 232f, y0 + 7f, 3f, 24f);
+        shapeRenderer.end();
+
         hudText(
             "FLOOR / ROOM",
-            x0 + 238f,
-            y0 + 18f,
-            .32f,
+            x0 + 240f,
+            y0 + 24f,
+            .30f,
             .68f,
-            .70f,
-            .78f
+            .76f,
+            .86f
         );
 
         hudText(
@@ -2392,6 +2428,62 @@ public class Main extends Game {
             if (pz != null && pz > 0) spreadPlague(enemy, Math.max(2, pz / 2 + 1));
             if (curse == EnemyCurse.VOLATILE) explodeVolatile(enemy);
             if (curse==EnemyCurse.MARTYR) empowerAllies(enemy);
+
+            // CENTRAL CONTROL: eliminate threats in the middle to earn gold.
+            if (enemy.getX() >= 2 && enemy.getX() <= 3
+                && enemy.getY() >= 2 && enemy.getY() <= 3) {
+                gold += 5;
+                spawnFloat("+5 CENTER", deathX, deathY + 48f, 1f, .82f, .2f);
+            }
+
+            // BACK-RANK DEFENCE: edge kills reinforce the player's defense.
+            if (enemy.getX() == 0 || enemy.getX() == Player.BOARD_SIZE - 1
+                || enemy.getY() == 0 || enemy.getY() == Player.BOARD_SIZE - 1) {
+                if (defense < MAX_DEFENSE) {
+                    defense++;
+                    spawnFloat("+1 DEF", deathX, deathY + 62f, .55f, .8f, 1f);
+                }
+            }
+
+            // KNIGHT TEMPO: a Knight-card capture restores one mana.
+            if (captureCard != null
+                && captureCard.getMovementType() == Card.MovementType.KNIGHT
+                && mana < getMaxMana()) {
+                mana++;
+                spawnFloat("+1 MANA", deathX, deathY + 76f, .4f, .7f, 1f);
+            }
+
+            // DESPERATE GAMBIT: a kill at critical health restores one HP.
+            if (playerHp <= 1 && playerHp < playerMaxHp) {
+                playerHp++;
+                spawnFloat("+1 HP", deathX, deathY + 90f, .35f, 1f, .45f);
+            }
+
+            // FORK: one adjacent living enemy takes bonus damage. The guard
+            // prevents a fork kill from starting another fork recursively.
+            if (!resolvingFork) {
+                Enemy forkTarget = null;
+                for (int i = 0; i < enemies.size; i++) {
+                    Enemy candidate = enemies.get(i);
+                    if (candidate == enemy || !candidate.isAlive() || candidate.isFalling()) continue;
+                    int dx = Math.abs(candidate.getX() - enemy.getX());
+                    int dy = Math.abs(candidate.getY() - enemy.getY());
+                    if (dx <= 1 && dy <= 1 && (dx != 0 || dy != 0)) {
+                        forkTarget = candidate;
+                        break;
+                    }
+                }
+
+                if (forkTarget != null) {
+                    resolvingFork = true;
+                    try {
+                        damageEnemy(forkTarget, 1, .95f, .72f, .28f);
+                    } finally {
+                        resolvingFork = false;
+                    }
+                    spawnFloat("FORK!", deathX, deathY + 104f, 1f, .65f, .25f);
+                }
+            }
         }
         return died;
     }
