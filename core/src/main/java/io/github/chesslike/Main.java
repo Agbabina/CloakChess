@@ -4475,8 +4475,6 @@ public class Main extends Game {
         }
     }
 
-    private void renderMenu() {
-
     // Atmospheric, asset-free dungeon backdrop. Kept procedural so it scales cleanly
     // across desktop and mobile aspect ratios without introducing another texture dependency.
     private void renderArenaBackdrop() {
@@ -4561,6 +4559,8 @@ public class Main extends Game {
         shapeRenderer.rect(0, h - 2f, w, 2f);
         shapeRenderer.end();
     }
+
+    private void renderMenu() {
 
         if (upgradesVisible) {
             renderUpgrades();
