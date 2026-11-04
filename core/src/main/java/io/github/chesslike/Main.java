@@ -96,6 +96,9 @@ public class Main extends Game {
     // ---------- Defense ----------
     private static final int MAX_DEFENSE = 2;
     private int defense = 0;
+
+    // Chess tactics that reward deliberate positioning and piece choice.
+    private boolean resolvingFork = false;
     private int frenzyTurns = 0;
     private int flawlessStreak = 0;
     private int shopRerolls = 0;
@@ -2282,6 +2285,54 @@ public class Main extends Game {
             if (pz != null && pz > 0) spreadPlague(enemy, Math.max(2, pz / 2 + 1));
             if (curse == EnemyCurse.VOLATILE) explodeVolatile(enemy);
             if (curse==EnemyCurse.MARTYR) empowerAllies(enemy);
+
+            // 1) Central control: captures in the four central squares fund the run.
+            if (enemy.getX() >= 2 && enemy.getX() <= 3 && enemy.getY() >= 2 && enemy.getY() <= 3) {
+                gold += 5;
+                spawnFloat("+5 CENTER", tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 46f, 1f, .82f, .28f);
+            }
+
+            // 2) Back-rank defence: edge captures reinforce the player's guard.
+            if (enemy.getX() == 0 || enemy.getX() == Player.BOARD_SIZE - 1
+                || enemy.getY() == 0 || enemy.getY() == Player.BOARD_SIZE - 1) {
+                if (defense < MAX_DEFENSE) {
+                    defense++;
+                    spawnFloat("+1 DEF", tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 26f, .55f, .82f, 1f);
+                }
+            }
+
+            // 3) Knight tempo: a Knight-card capture restores an extra mana.
+            if (captureCard != null && captureCard.getMovementType() == Card.MovementType.KNIGHT) {
+                mana = Math.min(getMaxMana(), mana + 1);
+                spawnFloat("+1 KNIGHT MANA", tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) - 24f, .45f, .78f, 1f);
+            }
+
+            // 4) Desperate gambit: a capture at critical health grants a small recovery.
+            if (playerHp <= 1 && playerHp < playerMaxHp) {
+                playerHp++;
+                spawnFloat("GAMBIT +1 HP", tileCenterX(enemy.getX()), tileCenterY(enemy.getY()) + 58f, .35f, 1f, .55f);
+            }
+
+            // 5) Fork: a capture can pressure one adjacent enemy, but cannot chain forever.
+            if (!resolvingFork) {
+                Enemy forkTarget = null;
+                int nearest = 99;
+                for (int fi = 0; fi < enemies.size; fi++) {
+                    Enemy candidate = enemies.get(fi);
+                    if (candidate == enemy || !candidate.isAlive() || candidate.isFalling()) continue;
+                    int distance = Math.max(Math.abs(candidate.getX() - enemy.getX()), Math.abs(candidate.getY() - enemy.getY()));
+                    if (distance == 1 && distance < nearest) {
+                        nearest = distance;
+                        forkTarget = candidate;
+                    }
+                }
+                if (forkTarget != null) {
+                    resolvingFork = true;
+                    damageEnemy(forkTarget, 1, .95f, .72f, .28f);
+                    resolvingFork = false;
+                    spawnFloat("FORK!", tileCenterX(forkTarget.getX()), tileCenterY(forkTarget.getY()) + 36f, 1f, .72f, .28f);
+                }
+            }
         }
         return died;
     }
@@ -4425,6 +4476,92 @@ public class Main extends Game {
     }
 
     private void renderMenu() {
+
+    // Atmospheric, asset-free dungeon backdrop. Kept procedural so it scales cleanly
+    // across desktop and mobile aspect ratios without introducing another texture dependency.
+    private void renderArenaBackdrop() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        float bx = Player.getBoardX(), by = Player.getBoardY();
+        float boardSize = Player.BOARD_SIZE * Player.TILE_SIZE;
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+
+        for (int i = 0; i < 20; i++) {
+            float y = i * h / 20f;
+            float shade = .025f + .012f * (i / 19f);
+            shapeRenderer.setColor(shade, shade * 1.25f, shade * 1.45f, 1f);
+            shapeRenderer.rect(0, y, w, h / 20f + 1f);
+        }
+
+        // Recessed stone wings framing the battlefield.
+        shapeRenderer.setColor(.035f, .047f, .052f, .92f);
+        shapeRenderer.rect(0, 54f, Math.max(0f, bx - 28f), h - 108f);
+        shapeRenderer.rect(bx + boardSize + 28f, 54f, Math.max(0f, w - bx - boardSize - 28f), h - 108f);
+
+        // Fine architectural grid and slow, restrained emerald rune lights.
+        for (int x = 24; x < w; x += 64) {
+            float pulse = .025f + .012f * (0.5f + 0.5f * MathUtils.sin(uiTime * .7f + x * .03f));
+            shapeRenderer.setColor(.18f, .34f, .27f, pulse);
+            shapeRenderer.rect(x, 64f, 1f, h - 128f);
+        }
+        for (int y = 72; y < h; y += 64) {
+            shapeRenderer.setColor(.22f, .28f, .24f, .035f);
+            shapeRenderer.rect(0, y, w, 1f);
+        }
+
+        // Raised board plinth and twin gold/emerald borders.
+        shapeRenderer.setColor(0f, 0f, 0f, .48f);
+        shapeRenderer.rect(bx - 18f, by - 18f, boardSize + 36f, boardSize + 36f);
+        shapeRenderer.setColor(.28f, .22f, .12f, .92f);
+        shapeRenderer.rect(bx - 13f, by - 13f, boardSize + 26f, boardSize + 26f);
+        shapeRenderer.setColor(.055f, .12f, .095f, 1f);
+        shapeRenderer.rect(bx - 9f, by - 9f, boardSize + 18f, boardSize + 18f);
+        shapeRenderer.setColor(.38f, .29f, .14f, .8f);
+        shapeRenderer.rect(bx - 4f, by - 4f, boardSize + 8f, boardSize + 8f);
+
+        // Corner studs.
+        float[] cx = {bx - 12f, bx + boardSize + 8f};
+        float[] cy = {by - 12f, by + boardSize + 8f};
+        shapeRenderer.setColor(.78f, .60f, .27f, .9f);
+        for (float px : cx) for (float py : cy) shapeRenderer.circle(px, py, 3.5f, 12);
+
+        // Subtle side-panel separators.
+        shapeRenderer.setColor(.34f, .27f, .16f, .38f);
+        if (bx > 34f) {
+            shapeRenderer.rect(bx - 27f, 82f, 1f, h - 164f);
+            shapeRenderer.rect(bx - 24f, 82f, 1f, h - 164f);
+        }
+        if (w - (bx + boardSize) > 34f) {
+            shapeRenderer.rect(bx + boardSize + 24f, 82f, 1f, h - 164f);
+            shapeRenderer.rect(bx + boardSize + 27f, 82f, 1f, h - 164f);
+        }
+        shapeRenderer.end();
+    }
+
+    private void renderMenuBackdrop(float w, float h) {
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        for (int i = 0; i < 24; i++) {
+            float y = i * h / 24f;
+            float shade = .025f + .014f * (i / 23f);
+            shapeRenderer.setColor(shade, shade * 1.25f, shade * 1.4f, 1f);
+            shapeRenderer.rect(0, y, w, h / 24f + 1f);
+        }
+        // Oversized ghost chess grid behind the menu panel.
+        float cell = Math.min(76f, h / 9f);
+        float gx = w * .67f - cell * 3f, gy = h * .5f - cell * 3f;
+        for (int x = 0; x < 6; x++) {
+            for (int y = 0; y < 6; y++) {
+                shapeRenderer.setColor((x + y) % 2 == 0 ? .12f : .035f,
+                    (x + y) % 2 == 0 ? .19f : .055f, .12f, .12f);
+                shapeRenderer.rect(gx + x * cell, gy + y * cell, cell - 2f, cell - 2f);
+            }
+        }
+        shapeRenderer.setColor(.18f, .38f, .27f, .12f);
+        shapeRenderer.rect(0, 0, w, 3f);
+        shapeRenderer.setColor(.48f, .35f, .16f, .35f);
+        shapeRenderer.rect(0, h - 2f, w, 2f);
+        shapeRenderer.end();
+    }
+
         if (upgradesVisible) {
             renderUpgrades();
             return;
@@ -4440,10 +4577,7 @@ public class Main extends Game {
         float h = Gdx.graphics.getHeight();
 
         if (bestiaryVisible) {
-            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            shapeRenderer.setColor(.10f, .11f, .16f, 1f);
-            shapeRenderer.rect(0, 0, w, h);
-            shapeRenderer.end();
+            renderMenuBackdrop(w, h);
 
             batch.begin();
 
@@ -4469,11 +4603,8 @@ public class Main extends Game {
             return;
         }
 
-        // Plain dark background behind everything
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(.08f, .09f, .12f, 1f);
-        shapeRenderer.rect(0, 0, w, h);
-        shapeRenderer.end();
+        // Layered dungeon backdrop replaces the flat menu fill.
+        renderMenuBackdrop(w, h);
 
         batch.begin();
         batch.setColor(Color.WHITE);
@@ -6920,6 +7051,7 @@ public class Main extends Game {
         updateSpellFx(delta);
         updateFloats(delta);
         updateSlashes(delta);
+        renderArenaBackdrop();
         board.render();
         renderPoisonTiles();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
