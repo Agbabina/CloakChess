@@ -2453,7 +2453,7 @@ public class Main extends Game {
             }
 
             // DESPERATE GAMBIT: a kill at critical health restores one HP.
-            if (playerHp <= 1 && playerHp < playerMaxHp) {
+            if (playerHp == 1 && playerHp < playerMaxHp) {
                 playerHp++;
                 spawnFloat("+1 HP", deathX, deathY + 90f, .35f, 1f, .45f);
             }
