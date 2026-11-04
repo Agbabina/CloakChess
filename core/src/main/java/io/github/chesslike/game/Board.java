@@ -7,7 +7,7 @@ import java.util.Random;
 
 public class Board {
     public static final int SIZE = 6;
-    public static final float TILE_SIZE = 100f;
+    public static final float TILE_SIZE = 84f; // Legacy reference; rendering uses responsive Player.getTileSize().
 
     private final Texture darkTile;
     private final Texture lightTile;
@@ -49,21 +49,22 @@ public class Board {
 
     public void render() {
         batch.begin();
-        boardX = (Gdx.graphics.getWidth() - SIZE * TILE_SIZE) / 2f;
+        float tileSize = Player.getTileSize();
+        boardX = Player.getBoardX();
         // Keep board coordinates identical to Player.getBoardY(); tiles and
         // pieces must share the exact same origin or the king appears misaligned.
-        boardY = (Gdx.graphics.getHeight() - SIZE * TILE_SIZE) / 2f;
+        boardY = (Gdx.graphics.getHeight() - SIZE * tileSize) / 2f;
 
         for (int y = 0; y < SIZE; y++) {
             for (int x = 0; x < SIZE; x++) {
                 Texture baseTile = ((x + y) % 2 == 0) ? lightTile : darkTile;
-                float tileX = boardX + x * TILE_SIZE;
-                float tileY = boardY + y * TILE_SIZE;
+                float tileX = boardX + x * tileSize;
+                float tileY = boardY + y * tileSize;
 
-                batch.draw(baseTile, tileX, tileY, TILE_SIZE, TILE_SIZE);
+                batch.draw(baseTile, tileX, tileY, tileSize, tileSize);
 
                 if (poisonedTiles[y][x]) {
-                    batch.draw(poisonTile, tileX, tileY, TILE_SIZE, TILE_SIZE);
+                    batch.draw(poisonTile, tileX, tileY, tileSize, tileSize);
                 }
             }
         }

@@ -128,6 +128,9 @@ public class EnemyGenerator {
             return Card.MovementType.JESTER;
         }
 
+        // Hunter appears from room 5 onward as a mobile close-range pursuer.
+        if (difficulty >= 5 && roll < 12) return Card.MovementType.HUNTER;
+
         // High difficulty (Room 5+)
         if (roll < 15) return Card.MovementType.PAWN;
         if (roll < 35) return Card.MovementType.BLINKER;
@@ -225,6 +228,10 @@ public class EnemyGenerator {
 
             case CHAMELEON:
                 return "chameleon.png";
+
+            case HUNTER:
+                // Temporary placeholder until dedicated Hunter artwork is supplied.
+                return "b_knight_png_256px.png";
 
             default:
                 return "b_pawn_png_256px.png";

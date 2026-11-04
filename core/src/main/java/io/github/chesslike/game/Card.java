@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.audio.Sound;
@@ -31,6 +32,26 @@ public class Card {
         CLAUDE,
         SHIFTER,
         LEAPER,
+        HUNTER,
+    }
+
+    public enum Rarity {
+        COMMON("COMMON", 0.81f, 0.85f, 0.89f),
+        UNCOMMON("UNCOMMON", 0.49f, 1f, 0.84f),
+        RARE("RARE", 0.61f, 0.78f, 1f),
+        LEGENDARY("LEGENDARY", 1f, 0.69f, 0.18f);
+
+        public final String label;
+        public final Color color;
+
+        Rarity(String label, float r, float g, float b) {
+            this.label = label;
+            this.color = new Color(r, g, b, 1f);
+        }
+
+        public String frameFile() {
+            return "card_" + name().toLowerCase(java.util.Locale.ROOT) + ".png";
+        }
     }
 
     // Forms the Shifter card can take
@@ -52,15 +73,23 @@ public class Card {
     // CARD SIZE
     // =========================================================
 
-    private static final float WIDTH = 115f;
-    private static final float HEIGHT = 155f;
+    // The card art is 256x328 (a 64x82 pixel grid at 4x). It is drawn at half
+    // size, so every art pixel is exactly 2 base units wide at layoutScale 1.
+    public static final float BASE_WIDTH = 128f;
+    public static final float BASE_HEIGHT = 164f;
+    private static final float GRID_W = 64f;
+    private static final float GRID_H = 82f;
 
     // =========================================================
     // CARD TEXTURES
     // =========================================================
 
-    private static Texture frameStandard;
+    private static Texture frameStandard;   // legacy fallback if cards/ frames are missing
     private static Texture frameAugmented;
+    private static final ObjectMap<Rarity, Texture> rarityFrames = new ObjectMap<>();
+    // Artwork per card type: cards/art_<type>.png wins, otherwise a piece sprite is reused.
+    private static final ObjectMap<MovementType, Texture> cardArt = new ObjectMap<>();
+    private static final GlyphLayout layout = new GlyphLayout();
     // Optional per-augment artwork. Missing files are safely skipped so builds still run.
     private static final ObjectMap<AugmentType, Texture> augmentIcons = new ObjectMap<>();
 
@@ -77,6 +106,40 @@ public class Card {
         if (frameAugmented == null) {
             frameAugmented = new Texture(Gdx.files.internal("card_frame_augmented.png"));
             frameAugmented.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        }
+
+
+        for (Rarity r : Rarity.values()) {
+            if (rarityFrames.containsKey(r)) continue;
+            try {
+                if (Gdx.files.internal(r.frameFile()).exists()) {
+                    Texture t = new Texture(Gdx.files.internal(r.frameFile()));
+                    // These are full-size UI card illustrations; linear filtering keeps
+                    // their edges clean when the hand scales down for smaller screens.
+                    t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                    rarityFrames.put(r, t);
+                }
+            } catch (Exception ignored) {
+                // Falls back to the legacy frame so the game still runs.
+            }
+        }
+
+        for (MovementType type : MovementType.values()) {
+            if (cardArt.containsKey(type)) continue;
+            String custom = "cards/art_" + type.name().toLowerCase(java.util.Locale.ROOT) + ".png";
+            String[] candidates = { custom, defaultArtFile(type) };
+            for (String file : candidates) {
+                try {
+                    if (file != null && Gdx.files.internal(file).exists()) {
+                        Texture t = new Texture(Gdx.files.internal(file));
+                        t.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                        cardArt.put(type, t);
+                        break;
+                    }
+                } catch (Exception ignored) {
+                    // Try the next candidate.
+                }
+            }
         }
 
         // Icons live beside the card frames: icon_augment_soul_eater.png, etc.
@@ -103,6 +166,29 @@ public class Card {
         }
     }
 
+    /** Existing sprites reused as card artwork until dedicated art_<type>.png files exist. */
+    private static String defaultArtFile(MovementType type) {
+        switch (type) {
+            case KNIGHT:     return "w_knight_png_256px.png";
+            case BISHOP:     return "w_bishop_png_256px.png";
+            case ROOK:       return "w_rook_png_256px.png";
+            case QUEEN:      return "w_queen_png_256px.png";
+            case PAWN:       return "w_pawn_png_256px.png";
+            case DASH:       return "pixelarrow.png";
+            case MADROOK:    return "mad_rook.png";
+            case JESTER:     return "jester.png";
+            case BLINKER:    return "blinker.png";
+            case CHAMELEON:  return "chameleon.png";
+            case SHIFTER:    return "chameleon.png";
+            case HUNTER:     return "hunter.png";
+            case ARCHBISHOP: return "w_bishop_png_256px.png";
+            case COUNCILLOR: return "w_queen_png_256px.png";
+            case LEAPER:     return "w_knight_png_256px.png";
+            case CLAUDE:     return "w_king_png_256px.png";
+            default:         return null;
+        }
+    }
+
     public static void disposeTextures() {
 
         if (frameStandard != null) {
@@ -117,6 +203,12 @@ public class Card {
 
         for (Texture icon : augmentIcons.values()) icon.dispose();
         augmentIcons.clear();
+
+        for (Texture t : rarityFrames.values()) t.dispose();
+        rarityFrames.clear();
+
+        for (Texture t : cardArt.values()) t.dispose();
+        cardArt.clear();
 
         if (selectSound != null) {
             selectSound.dispose();
@@ -273,6 +365,9 @@ public class Card {
             case LEAPER:
                 return new LeaperRules();
 
+            case HUNTER:
+                return new HunterRules();
+
             default:
                 throw new IllegalArgumentException("Unsupported movement type: " + type);
         }
@@ -325,6 +420,33 @@ public class Card {
 
     public int getUsesRemaining() {
         return usesRemaining;
+    }
+
+    /** Drives which frame is drawn. Edit this table to rebalance card rarity. */
+    public Rarity getRarity() {
+        switch (movementType) {
+            case KNIGHT:
+            case BISHOP:
+            case ROOK:
+            case PAWN:
+            case DASH:
+                return Rarity.COMMON;
+            case QUEEN:
+            case LEAPER:
+            case JESTER:
+            case BLINKER:
+                return Rarity.UNCOMMON;
+            case MADROOK:
+            case CHAMELEON:
+            case ARCHBISHOP:
+            case COUNCILLOR:
+            case HUNTER:
+                return Rarity.RARE;
+            case CLAUDE:
+            case SHIFTER:
+            default:
+                return Rarity.LEGENDARY;
+        }
     }
 
     /** Base capture damage for this card's current movement form. */
@@ -673,7 +795,15 @@ public class Card {
 
     public void setLayoutScale(float scale) {
         layoutScale = MathUtils.clamp(scale, 0.45f, 1f);
+        if (!initialized) this.scale = layoutScale;
     }
+
+    /** Width/height of the slot this card occupies in the hand (before hover/select scaling). */
+    public float getSlotWidth() { return BASE_WIDTH * layoutScale; }
+    public float getSlotHeight() { return BASE_HEIGHT * layoutScale; }
+
+    private float drawLeft() { return animatedX + (getSlotWidth() - BASE_WIDTH * scale) / 2f; }
+    private float drawBottom() { return animatedY + (getSlotHeight() - BASE_HEIGHT * scale) / 2f; }
 
     public void setHovered(boolean hovered) {
 
@@ -752,17 +882,19 @@ public class Card {
 
     public void drawShape(SpriteBatch batch) {
 
-        if (batch == null || frameStandard == null || frameAugmented == null) {
+        if (batch == null) {
             return;
         }
 
-        float scaledWidth = WIDTH * scale;
-        float scaledHeight = HEIGHT * scale;
+        Texture frame = rarityFrames.get(getRarity());
+        if (frame == null) frame = frameStandard;
+        if (frame == null) return;
 
-        float drawX = animatedX + (WIDTH - scaledWidth) / 2f;
-        float drawY = animatedY + (HEIGHT - scaledHeight) / 2f;
+        float scaledWidth = BASE_WIDTH * scale;
+        float scaledHeight = BASE_HEIGHT * scale;
 
-        Texture frame = hasAnyAugment() ? frameAugmented : frameStandard;
+        float drawX = drawLeft();
+        float drawY = drawBottom();
 
         if (isUsed()) {
 
@@ -820,76 +952,109 @@ public class Card {
         batch.setColor(Color.WHITE);
     }
 
+    // Draws one line of text inside a box, shrinking it until it fits, centred on (cx, cy).
+    private static void drawFitted(SpriteBatch batch, BitmapFont font, String text, Color color,
+                                   float cx, float cy, float maxW, float maxH,
+                                   float startScale, float minScale) {
+        float s = startScale;
+        font.getData().setScale(s);
+        layout.setText(font, text);
+        while ((layout.width > maxW || layout.height > maxH) && s > minScale) {
+            s *= 0.92f;
+            font.getData().setScale(s);
+            layout.setText(font, text);
+        }
+        font.setColor(color);
+        font.draw(batch, text, cx - layout.width / 2f, cy + layout.height / 2f);
+    }
+
     public void drawText(SpriteBatch batch, BitmapFont font) {
 
         if (batch == null || font == null) {
             return;
         }
 
-        float drawX = animatedX + (WIDTH - WIDTH * scale) / 2f;
-        float drawY = animatedY + (HEIGHT - HEIGHT * scale) / 2f;
+        final float u = (BASE_WIDTH / GRID_W) * scale;   // size of one art pixel on screen
+        final float left = drawLeft();
+        final float bottom = drawBottom();
+        final boolean used = isUsed();
+        final Rarity rarity = getRarity();
 
-        // NAME
-        font.getData().setScale(1.00f * scale);
+        // ---- ARTWORK (window is grid x 9..54, y 22..45 measured from the top)
+        Texture art = cardArt.get(movementType == MovementType.SHIFTER ? currentForm : movementType);
+        if (art == null) art = cardArt.get(movementType);
+        if (art != null) {
+            float side = 22f * u;
+            batch.setColor(used ? new Color(0.45f, 0.45f, 0.45f, 1f) : Color.WHITE);
+            batch.draw(art, left + 32f * u - side / 2f, bottom + (GRID_H - 34f) * u - side / 2f, side, side);
+            batch.setColor(Color.WHITE);
+        }
 
-        if (isUsed()) font.setColor(Color.GRAY);
-        else if (isClaude()) font.setColor(1f, 0.62f, 0.22f, 1f);
-        else if (isShifter()) font.setColor(0.82f, 0.65f, 1f, 1f);
-        else font.setColor(Color.WHITE);
-
-        font.draw(batch, name, drawX + 15f * scale, drawY + HEIGHT * scale - 18f * scale);
-
-        // USES
-        font.getData().setScale(0.68f * scale);
-
-        font.setColor(isUsed() ? Color.DARK_GRAY : new Color(1f, 0.80f, 0.30f, 1f));
-
-        String usesText = isUsed() ? "USED" : "USES: " + usesRemaining;
-
-        font.draw(batch, usesText, drawX + 15f * scale, drawY + HEIGHT * scale - 38f * scale);
-
-        // MOVEMENT TYPE
-        font.getData().setScale(0.78f * scale);
-
-        if (isUsed()) font.setColor(Color.DARK_GRAY);
-        else if (isClaude()) font.setColor(1f, 0.55f, 0.15f, 1f);
-        else if (isShifter()) font.setColor(0.75f, 0.50f, 1f, 1f);
-        else font.setColor(0.30f, 0.65f, 0.95f, 1f);
-
-        font.draw(batch, movementType.toString(), drawX + 20f * scale, drawY + 75f * scale);
-
-        // Augment icons form a compact, readable strip at the card's upper-right.
-        // Each icon is optional; text fallback keeps augments discoverable if artwork is absent.
-        float iconSize = 18f * scale;
-        float iconX = drawX + WIDTH * scale - iconSize - 9f * scale;
-        float iconY = drawY + HEIGHT * scale - 62f * scale;
+        // ---- AUGMENT ICONS (top-right corner of the art window)
+        float iconSize = 8f * u;
+        float iconRight = left + 54f * u - iconSize;
+        float iconY = bottom + (GRID_H - 22f) * u - iconSize - u;
         int shown = 0;
         for (AugmentType type : augments) {
             if (shown >= 4) break;
             Texture icon = augmentIcons.get(type);
             if (icon != null) {
                 batch.setColor(Color.WHITE);
-                batch.draw(icon, iconX - shown * (iconSize + 2f * scale), iconY, iconSize, iconSize);
-            } else if (shown == 0) {
-                font.getData().setScale(0.38f * scale);
-                font.setColor(new Color(1f, .82f, .42f, 1f));
-                font.draw(batch, "AUG", drawX + WIDTH * scale - 32f * scale, drawY + HEIGHT * scale - 62f * scale);
+                batch.draw(icon, iconRight - shown * (iconSize + u), iconY, iconSize, iconSize);
             }
             shown++;
         }
-        font.getData().setScale(0.78f * scale);
+        batch.setColor(Color.WHITE);
 
-        // ATTACK DAMAGE
-        font.getData().setScale(0.70f * scale);
-        font.setColor(isUsed() ? Color.DARK_GRAY : new Color(1f, 0.42f, 0.30f, 1f));
-        font.draw(batch, "DMG " + getAttackDamage(), drawX + 20f * scale, drawY + 55f * scale);
+        // ---- NAME (panel inner: grid x 8..46, y 7..14)
+        Color nameColor;
+        if (used) nameColor = Color.GRAY;
+        else if (isClaude()) nameColor = new Color(1f, 0.62f, 0.22f, 1f);
+        else if (isShifter()) nameColor = new Color(0.82f, 0.65f, 1f, 1f);
+        else nameColor = Color.WHITE;
+        drawFitted(batch, font, name, nameColor,
+            left + 27f * u, bottom + (GRID_H - 10.5f) * u, 37f * u, 7f * u, 0.9f * scale, 0.25f * scale);
 
-        // DESCRIPTION
-        font.getData().setScale(0.72f * scale);
+        // ---- USES inside the cost gem (centre grid 54.5, 9.5)
+        Color usesColor = used ? Color.DARK_GRAY : new Color(0.92f, 1f, 0.96f, 1f);
+        drawFitted(batch, font, String.valueOf(Math.max(0, usesRemaining)), usesColor,
+            left + 54.5f * u, bottom + (GRID_H - 9.5f) * u, 5f * u, 5f * u, 0.8f * scale, 0.25f * scale);
 
-        font.setColor(isUsed() ? Color.DARK_GRAY : new Color(0.70f, 0.75f, 0.82f, 1f));
+        // ---- RARITY label (banner inner: grid x 20..43, y 53..57)
+        drawFitted(batch, font, rarity.label, used ? Color.DARK_GRAY : rarity.color,
+            left + 31.5f * u, bottom + (GRID_H - 55f) * u, 22f * u, 4f * u, 0.5f * scale, 0.15f * scale);
 
-        font.draw(batch, getDescription(), drawX + 20f * scale, drawY + 30f * scale);
+        // ---- DAMAGE + DESCRIPTION (box inner: grid x 8..55, y 62..76)
+        float boxX = left + 8f * u;
+        float boxTop = bottom + (GRID_H - 62.5f) * u;
+        float boxW = 47f * u;
+        float boxH = 13f * u;
+        String desc = getDescription();
+        String dmg = "DMG " + getAttackDamage();
+
+        float s = 0.55f * scale;
+        float dmgH, descH = 0f;
+        while (true) {
+            font.getData().setScale(s);
+            layout.setText(font, dmg);
+            dmgH = layout.height;
+            if (desc.isEmpty()) { descH = 0f; }
+            else {
+                layout.setText(font, desc, Color.WHITE, boxW, com.badlogic.gdx.utils.Align.left, true);
+                descH = layout.height;
+            }
+            float total = dmgH + (desc.isEmpty() ? 0f : descH + 2.5f * scale);
+            if (total <= boxH || s <= 0.15f * scale) break;
+            s *= 0.93f;
+        }
+        font.getData().setScale(s);
+        font.setColor(used ? Color.DARK_GRAY : new Color(1f, 0.42f, 0.30f, 1f));
+        font.draw(batch, dmg, boxX, boxTop);
+        if (!desc.isEmpty()) {
+            font.setColor(used ? Color.DARK_GRAY : new Color(0.78f, 0.82f, 0.90f, 1f));
+            font.draw(batch, desc, boxX, boxTop - dmgH - 2.5f * scale, boxW,
+                com.badlogic.gdx.utils.Align.left, true);
+        }
 
         // Reset font.
         font.getData().setScale(1f);
@@ -928,6 +1093,27 @@ public class Card {
             case LEAPER:
                 return "Jump 2 tiles";
 
+            case HUNTER:
+                return "King step + knight leap";
+
+            case MADROOK:
+                return "Erratic lines";
+
+            case JESTER:
+                return "Cycles move shapes";
+
+            case BLINKER:
+                return "Blinks to random tiles";
+
+            case CHAMELEON:
+                return "Copies a piece";
+
+            case ARCHBISHOP:
+                return "Bishop + knight";
+
+            case COUNCILLOR:
+                return "Zebra: 3 + 2 leap";
+
             case SHIFTER:
                 return "Now: " + formLabel(currentForm);
 
@@ -946,11 +1132,11 @@ public class Card {
             return false;
         }
 
-        float drawX = animatedX + (WIDTH - WIDTH * scale) / 2f;
-        float drawY = animatedY + (HEIGHT - HEIGHT * scale) / 2f;
+        float drawX = drawLeft();
+        float drawY = drawBottom();
 
-        float drawWidth = WIDTH * scale;
-        float drawHeight = HEIGHT * scale;
+        float drawWidth = BASE_WIDTH * scale;
+        float drawHeight = BASE_HEIGHT * scale;
 
         return touchX >= drawX
             && touchX <= drawX + drawWidth

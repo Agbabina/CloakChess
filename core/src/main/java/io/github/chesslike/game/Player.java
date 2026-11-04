@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
 
 public class Player {
 
@@ -14,7 +15,14 @@ public class Player {
     private final Texture texture;
 
     public static final int BOARD_SIZE = 6;
-    public static final float TILE_SIZE = 100f;
+    /** Fit the 6x6 board inside the current window with room for the HUD and hand. */
+    public static float getTileSize() {
+        float width = Math.max(1f, Gdx.graphics.getWidth());
+        float height = Math.max(1f, Gdx.graphics.getHeight());
+        float fitWidth = (width - 24f) / BOARD_SIZE;
+        float fitHeight = (height - 190f) / BOARD_SIZE;
+        return Math.max(42f, Math.min(100f, Math.min(fitWidth, fitHeight) * .88f));
+    }
 
 
     private boolean selected = false;
@@ -95,11 +103,18 @@ public class Player {
     // =========================================
 
     public static float getBoardX() {
-        return (Gdx.graphics.getWidth() - BOARD_SIZE * TILE_SIZE) / 2f;
+        float width = Gdx.graphics.getWidth();
+        float boardWidth = BOARD_SIZE * getTileSize();
+        // Move the board right relative to its previous left-biased position,
+        // while retaining some clearance for the hand on the right.
+        float leftInset = width >= 1100f ? Math.min(60f, width * .044f)
+            : width >= 850f ? width * .025f : 0f;
+        float centeredX = (width - boardWidth) / 2f;
+        return MathUtils.clamp(centeredX - leftInset, 8f, Math.max(8f, width - boardWidth - 8f));
     }
 
     public static float getBoardY() {
-        return (Gdx.graphics.getHeight() - BOARD_SIZE * TILE_SIZE) / 2f;
+        return (Gdx.graphics.getHeight() - BOARD_SIZE * getTileSize()) / 2f;
     }
 
     // =========================================
@@ -110,13 +125,13 @@ public class Player {
         float boardX = getBoardX();
         float boardY = getBoardY();
 
-        float pieceSize = TILE_SIZE * 0.90f;
-        float offset = (TILE_SIZE - pieceSize) / 2f;
+        float pieceSize = getTileSize() * 0.90f;
+        float offset = (getTileSize() - pieceSize) / 2f;
 
         batch.draw(
             texture,
-            boardX + x * TILE_SIZE + offset,
-            boardY + y * TILE_SIZE + offset,
+            boardX + x * getTileSize() + offset,
+            boardY + y * getTileSize() + offset,
             pieceSize,
             pieceSize
         );
@@ -130,13 +145,13 @@ public class Player {
         float boardX = getBoardX();
         float boardY = getBoardY();
 
-        float playerX = boardX + x * TILE_SIZE;
-        float playerY = boardY + y * TILE_SIZE;
+        float playerX = boardX + x * getTileSize();
+        float playerY = boardY + y * getTileSize();
 
         return screenX >= playerX
-            && screenX <= playerX + TILE_SIZE
+            && screenX <= playerX + getTileSize()
             && screenY >= playerY
-            && screenY <= playerY + TILE_SIZE;
+            && screenY <= playerY + getTileSize();
     }
 
     // =========================================
@@ -320,10 +335,10 @@ public class Player {
                     board
                 )) {
                     shape.rect(
-                        boardX + targetX * TILE_SIZE + 15,
-                        boardY + targetY * TILE_SIZE + 15,
-                        TILE_SIZE - 30,
-                        TILE_SIZE - 30
+                        boardX + targetX * getTileSize() + 15,
+                        boardY + targetY * getTileSize() + 15,
+                        getTileSize() - 30,
+                        getTileSize() - 30
                     );
                 }
             }
@@ -339,10 +354,10 @@ public class Player {
         );
 
         shape.rect(
-            boardX + x * TILE_SIZE + 4,
-            boardY + y * TILE_SIZE + 4,
-            TILE_SIZE - 8,
-            TILE_SIZE - 8
+            boardX + x * getTileSize() + 4,
+            boardY + y * getTileSize() + 4,
+            getTileSize() - 8,
+            getTileSize() - 8
         );
     }
 
@@ -370,10 +385,10 @@ public class Player {
 
                 if (targetX != x || targetY != y) {
                     shape.rect(
-                        boardX + targetX * TILE_SIZE + 15,
-                        boardY + targetY * TILE_SIZE + 15,
-                        TILE_SIZE - 30,
-                        TILE_SIZE - 30
+                        boardX + targetX * getTileSize() + 15,
+                        boardY + targetY * getTileSize() + 15,
+                        getTileSize() - 30,
+                        getTileSize() - 30
                     );
                 }
             }
@@ -389,10 +404,10 @@ public class Player {
         );
 
         shape.rect(
-            boardX + x * TILE_SIZE + 4,
-            boardY + y * TILE_SIZE + 4,
-            TILE_SIZE - 8,
-            TILE_SIZE - 8
+            boardX + x * getTileSize() + 4,
+            boardY + y * getTileSize() + 4,
+            getTileSize() - 8,
+            getTileSize() - 8
         );
     }
 
@@ -478,10 +493,10 @@ public class Player {
             while (isInsideBoard(tx, ty)) {
 
                 shape.rect(
-                    boardX + tx * TILE_SIZE + 15,
-                    boardY + ty * TILE_SIZE + 15,
-                    TILE_SIZE - 30,
-                    TILE_SIZE - 30
+                    boardX + tx * getTileSize() + 15,
+                    boardY + ty * getTileSize() + 15,
+                    getTileSize() - 30,
+                    getTileSize() - 30
                 );
 
                 tx += dir[0];
