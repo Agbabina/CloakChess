@@ -463,9 +463,7 @@ public class Card {
     // AUGMENTS
     // =========================================================
 
-    // Switches on the augment type NAME, so this compiles even before the new
-    // constants exist in Augment.Type. Add FURY, MANA_SURGE, VAMPIRIC, GILDED,
-    // AEGIS, VENOM and ECHO to that enum to make them usable.
+    // Apply each augment's gameplay effect and retain its type for rendering and saves.
     public void applyAugment(Augment augment) {
 
         if (augment == null) {
@@ -645,16 +643,7 @@ public class Card {
                     default: break;
                 }
             } catch (IllegalArgumentException ignored) {
-            }
-            switch (part.trim()) {
-                case "FURY": hasFury = true; break;
-                case "MANA_SURGE": hasManaSurge = true; break;
-                case "VAMPIRIC": hasVampiric = true; break;
-                case "GILDED": hasGilded = true; break;
-                case "AEGIS": hasAegis = true; break;
-                case "VENOM": hasVenom = true; break;
-                case "ECHO": hasEcho = true; break;
-                default: break;
+                // Ignore unknown codes so older or newer saves remain loadable.
             }
         }
     }
