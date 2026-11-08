@@ -3223,45 +3223,31 @@ public class Main extends Game {
         batch.end();
     }
 
-    // ---------- Touch UI buttons ----------
+    // ---------- Quick inventory / action tray ----------
+    // Seven real action slots: arrow, three owned spells, cancel, sacrifice and reroll.
+    // The same slots adapt to portrait phones and landscape laptop screens.
     private void layoutUiButtons() {
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
-
-        // Phone portrait: compact 4-column action tray below the top HUD.
-        // Laptop / landscape: readable 2-column inventory grid in the left rail.
-        if (h > w) {
-            float gap = 5f;
-            float margin = 10f;
-            float buttonW = (w - margin * 2f - gap * 3f) / 4f;
-            float buttonH = MathUtils.clamp(h * .052f, 34f, 44f);
-            float top = h - 132f;
-            for (int i = 0; i < uiButtons.length; i++) {
-                int col = i % 4;
-                int row = i / 4;
-                float y = top - buttonH - row * (buttonH + gap);
-                uiButtons[i].set(margin + col * (buttonW + gap), y, buttonW, buttonH);
-            }
-            return;
-        }
-
-        float gap = 7f;
-        float margin = 18f;
-        float buttonW = Math.min(142f, Math.max(104f, w * .105f));
-        float buttonH = MathUtils.clamp(h * .066f, 42f, 50f);
-        float gridW = buttonW * 2f + gap;
-        float top = Math.min(h - 150f, h * .78f);
-        float totalH = 4f * buttonH + 3f * gap;
-        float startY = Math.max(18f, top - totalH);
+        boolean portrait = h > w;
+        float gap = portrait ? 5f : 7f;
+        float margin = portrait ? 10f : 18f;
+        float buttonH = portrait
+            ? MathUtils.clamp(h * .052f, 36f, 44f)
+            : MathUtils.clamp(h * .066f, 44f, 50f);
+        int columns = portrait ? 4 : 2;
+        float buttonW = portrait
+            ? (w - margin * 2f - gap * (columns - 1)) / columns
+            : Math.min(142f, Math.max(104f, w * .105f));
+        float top = portrait ? h - 160f : Math.min(h - 158f, h * .78f);
 
         for (int i = 0; i < uiButtons.length; i++) {
-            int col = i % 2;
-            int row = i / 2;
+            int col = i % columns;
+            int row = i / columns;
             float y = top - buttonH - row * (buttonH + gap);
             uiButtons[i].set(margin + col * (buttonW + gap), y, buttonW, buttonH);
         }
     }
-
 
     private void cancelAction() {
         selectedSpell = null;
@@ -3286,48 +3272,120 @@ public class Main extends Game {
         }
         return false;
     }
-    // --------------------------------------
+
+    private String uiSlotTitle(int index, boolean compact) {
+        if (index == 0) return compact ? "ARROW " + player.getArrowsRemaining()
+            : "ARROW  " + player.getArrowsRemaining() + (bounceArrows > 0 ? " +" + bounceArrows + "B" : "");
+        if (index <= 3) {
+            if (index - 1 >= ownedSpells.size) return "EMPTY";
+            Spell spell = ownedSpells.get(index - 1);
+            return spell.getLabel();
+        }
+        if (index == 4) return "CANCEL";
+        if (index == 5) return "SACRIFICE";
+        return roomRerolled ? "REROLL USED" : "REROLL";
+    }
+
+    private String uiSlotDetail(int index) {
+        if (index == 0) return "RANGE ATTACK";
+        if (index <= 3) {
+            if (index - 1 >= ownedSpells.size) return "EMPTY SLOT";
+            return "MANA " + manaCost(ownedSpells.get(index - 1));
+        }
+        if (index == 4) return "CLEAR SELECTION";
+        if (index == 5) return activeCard == null ? "SELECT A CARD" : "CARD TO RESOURCES";
+        return roomRerolled ? "ALREADY USED" : (activeCard == null ? "SELECT A CARD" : "SWAP THIS CARD");
+    }
 
     private void renderUiButtons() {
         if (gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
         layoutUiButtons();
         float w = Gdx.graphics.getWidth();
+        float h = Gdx.graphics.getHeight();
+        boolean portrait = h > w;
         boolean compact = w < 600f;
+        Rectangle first = uiButtons[0];
+        Rectangle last = uiButtons[uiButtons.length - 1];
+        float panelX = portrait ? 6f : 10f;
+        float panelRight = portrait ? w - 6f : uiButtons[5].x + uiButtons[5].width + 10f;
+        float panelW = panelRight - panelX;
+        float panelTop = first.y + first.height + (portrait ? 27f : 30f);
+        float panelBottom = last.y - (portrait ? 9f : 10f);
+        float panelH = panelTop - panelBottom;
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0f, 0f, 0f, .34f);
+        shapeRenderer.rect(panelX + 3f, panelBottom - 3f, panelW, panelH);
+        shapeRenderer.setColor(.035f, .047f, .072f, .94f);
+        shapeRenderer.rect(panelX, panelBottom, panelW, panelH);
+        shapeRenderer.setColor(.16f, .20f, .27f, .9f);
+        shapeRenderer.rect(panelX, panelBottom + panelH - 2f, panelW, 2f);
+        shapeRenderer.setColor(.83f, .65f, .29f, .95f);
+        shapeRenderer.rect(panelX + 8f, panelTop - 23f, 3f, 13f);
+
         for (int i = 0; i < uiButtons.length; i++) {
-            boolean active = (i == 0 && shootMode)
-                || (i >= 1 && i <= 3 && selectedSpell != null && i - 1 < ownedSpells.size && ownedSpells.get(i - 1) == selectedSpell)
-                || (i == 5 && activeCard != null) || (i == 6 && activeCard != null && !roomRerolled);
             Rectangle r = uiButtons[i];
-            shapeRenderer.setColor(0f, 0f, 0f, .30f);
+            boolean active = (i == 0 && shootMode)
+                || (i >= 1 && i <= 3 && selectedSpell != null
+                    && i - 1 < ownedSpells.size && ownedSpells.get(i - 1) == selectedSpell)
+                || (i == 5 && activeCard != null)
+                || (i == 6 && activeCard != null && !roomRerolled);
+            boolean disabled = (i >= 1 && i <= 3 && i - 1 >= ownedSpells.size)
+                || (i == 5 && activeCard == null)
+                || (i == 6 && (activeCard == null || roomRerolled));
+            shapeRenderer.setColor(0f, 0f, 0f, .28f);
             shapeRenderer.rect(r.x + 2f, r.y - 2f, r.width, r.height);
-            shapeRenderer.setColor(active ? new Color(.16f, .43f, .48f, .98f) : new Color(.055f, .075f, .11f, .96f));
+            if (active) shapeRenderer.setColor(.13f, .34f, .34f, 1f);
+            else if (disabled) shapeRenderer.setColor(.065f, .075f, .095f, .96f);
+            else shapeRenderer.setColor(.085f, .105f, .145f, .98f);
             shapeRenderer.rect(r.x, r.y, r.width, r.height);
-            shapeRenderer.setColor(active ? new Color(.38f, .88f, .78f, 1f) : new Color(.68f, .53f, .25f, .9f));
+            if (i == 0) shapeRenderer.setColor(.94f, .72f, .25f, 1f);
+            else if (i >= 1 && i <= 3) shapeRenderer.setColor(.36f, .62f, .94f, disabled ? .45f : 1f);
+            else if (i == 5) shapeRenderer.setColor(.76f, .37f, .34f, disabled ? .4f : 1f);
+            else if (i == 6) shapeRenderer.setColor(.70f, .57f, .31f, disabled ? .4f : 1f);
+            else shapeRenderer.setColor(.55f, .61f, .70f, .8f);
             shapeRenderer.rect(r.x, r.y + r.height - 2f, r.width, 2f);
         }
         shapeRenderer.end();
 
         batch.begin();
-        font.getData().setScale(compact ? .34f : .43f);
+        font.getData().setScale(compact ? .36f : .43f);
+        font.setColor(new Color(.96f, .84f, .55f, 1f));
+        font.draw(batch, "ARSENAL", panelX + 16f, panelTop - 8f);
+        font.getData().setScale(compact ? .24f : .29f);
+        font.setColor(new Color(.58f, .64f, .74f, 1f));
+        String subtitle = portrait ? "ARROWS  /  SPELLS  /  ACTIONS" : "QUICK INVENTORY  •  TACTICAL ACTIONS";
+        font.draw(batch, subtitle, panelX + (compact ? 82f : 92f), panelTop - 8f);
+
         for (int i = 0; i < uiButtons.length; i++) {
-            String label;
-            if (i == 0) label = compact ? "ARROW " + player.getArrowsRemaining() : "ARROW (" + player.getArrowsRemaining() + (bounceArrows > 0 ? " +" + bounceArrows + "B" : "") + ")";
-            else if (i <= 3) label = (i - 1 < ownedSpells.size) ? (compact ? ownedSpells.get(i - 1).getLabel() : ownedSpells.get(i - 1).getLabel() + " (" + manaCost(ownedSpells.get(i - 1)) + ")") : "EMPTY";
-            else if (i == 4) label = "CANCEL";
-            else if (i == 5) label = compact ? "SACRIFICE" : "SACRIFICE";
-            else label = roomRerolled ? "REROLL USED" : "REROLL";
             Rectangle r = uiButtons[i];
-            font.setColor(new Color(.92f, .94f, 1f, 1f));
-            GlyphLayout layout = new GlyphLayout(font, label);
-            font.draw(batch, label, r.x + Math.max(4f, (r.width - layout.width) / 2f),
-                r.y + r.height / 2f + layout.height / 2f);
+            boolean disabled = (i >= 1 && i <= 3 && i - 1 >= ownedSpells.size)
+                || (i == 5 && activeCard == null)
+                || (i == 6 && (activeCard == null || roomRerolled));
+            font.getData().setScale(compact ? .29f : .39f);
+            font.setColor(disabled ? new Color(.43f, .47f, .54f, 1f) : new Color(.93f, .95f, 1f, 1f));
+            String title = uiSlotTitle(i, compact);
+            GlyphLayout titleLayout = new GlyphLayout(font, title);
+            float titleX = r.x + Math.max(3f, (r.width - titleLayout.width) / 2f);
+            float titleY = r.y + r.height * .62f + titleLayout.height * .5f;
+            font.draw(batch, title, titleX, titleY);
+
+            font.getData().setScale(compact ? .20f : .25f);
+            font.setColor(disabled ? new Color(.34f, .38f, .45f, 1f) : new Color(.62f, .70f, .80f, 1f));
+            String detail = uiSlotDetail(i);
+            GlyphLayout detailLayout = new GlyphLayout(font, detail);
+            if (detailLayout.width > r.width - 6f && compact) {
+                detail = i == 5 ? "CARD → GAIN" : (i == 6 ? "SWAP CARD" : detail);
+                detailLayout.setText(font, detail);
+            }
+            font.draw(batch, detail, r.x + Math.max(3f, (r.width - detailLayout.width) / 2f),
+                r.y + r.height * .28f + detailLayout.height * .5f);
         }
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
         batch.end();
     }
+    // --------------------------------------
 
     private void selectCardFromTap(Card c) {
         clickSound.play();
