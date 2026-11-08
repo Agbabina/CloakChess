@@ -28,6 +28,7 @@ public class Card {
         CLAUDE,
         SHIFTER,
         LEAPER,
+        HUNTER,
     }
 
     // Forms the Shifter card can take
@@ -266,6 +267,9 @@ public class Card {
 
             case LEAPER:
                 return new LeaperRules();
+
+            case HUNTER:
+                return new HunterRules();
 
             default:
                 throw new IllegalArgumentException("Unsupported movement type: " + type);
@@ -923,6 +927,9 @@ public class Card {
 
             case LEAPER:
                 return "Jump 2 tiles";
+
+            case HUNTER:
+                return "King step or knight jump";
 
             case SHIFTER:
                 return "Now: " + formLabel(currentForm);
