@@ -3225,15 +3225,40 @@ public class Main extends Game {
 
     // ---------- Touch UI buttons ----------
     private void layoutUiButtons() {
+        float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
-        float x = 20f, top = h - 120f - UI_BTN_H, y = top;
+
+        // Phone portrait: compact 4-column action tray below the top HUD.
+        // Laptop / landscape: readable 2-column inventory grid in the left rail.
+        if (h > w) {
+            float gap = 5f;
+            float margin = 10f;
+            float buttonW = (w - margin * 2f - gap * 3f) / 4f;
+            float buttonH = MathUtils.clamp(h * .052f, 34f, 44f);
+            float top = h - 132f;
+            for (int i = 0; i < uiButtons.length; i++) {
+                int col = i % 4;
+                int row = i / 4;
+                float y = top - buttonH - row * (buttonH + gap);
+                uiButtons[i].set(margin + col * (buttonW + gap), y, buttonW, buttonH);
+            }
+            return;
+        }
+
+        float gap = 7f;
+        float margin = 18f;
+        float buttonW = Math.min(142f, Math.max(104f, w * .105f));
+        float buttonH = MathUtils.clamp(h * .066f, 42f, 50f);
+        float gridW = buttonW * 2f + gap;
+        float top = Math.min(h - 150f, h * .78f);
+        float totalH = 4f * buttonH + 3f * gap;
+        float startY = Math.max(18f, top - totalH);
+
         for (int i = 0; i < uiButtons.length; i++) {
-            if (y < 10f) {
-                y = top;
-                x += UI_BTN_W + UI_BTN_GAP;
-            } // overflow into a second column on short screens
-            uiButtons[i].set(x, y, UI_BTN_W, UI_BTN_H);
-            y -= UI_BTN_H + UI_BTN_GAP;
+            int col = i % 2;
+            int row = i / 2;
+            float y = top - buttonH - row * (buttonH + gap);
+            uiButtons[i].set(margin + col * (buttonW + gap), y, buttonW, buttonH);
         }
     }
 
@@ -3266,29 +3291,38 @@ public class Main extends Game {
     private void renderUiButtons() {
         if (gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
         layoutUiButtons();
+        float w = Gdx.graphics.getWidth();
+        boolean compact = w < 600f;
+
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (int i = 0; i < uiButtons.length; i++) {
-            boolean active = (i == 0 && shootMode) || (i >= 1 && i <= 3 && selectedSpell != null && i - 1 < ownedSpells.size && ownedSpells.get(i - 1) == selectedSpell) || (i == 5 && activeCard != null) || (i == 6 && activeCard != null && !roomRerolled);
-            if (active) shapeRenderer.setColor(.3f, .8f, 1f, .9f);
-            else shapeRenderer.setColor(.15f, .17f, .25f, .85f);
+            boolean active = (i == 0 && shootMode)
+                || (i >= 1 && i <= 3 && selectedSpell != null && i - 1 < ownedSpells.size && ownedSpells.get(i - 1) == selectedSpell)
+                || (i == 5 && activeCard != null) || (i == 6 && activeCard != null && !roomRerolled);
             Rectangle r = uiButtons[i];
+            shapeRenderer.setColor(0f, 0f, 0f, .30f);
+            shapeRenderer.rect(r.x + 2f, r.y - 2f, r.width, r.height);
+            shapeRenderer.setColor(active ? new Color(.16f, .43f, .48f, .98f) : new Color(.055f, .075f, .11f, .96f));
             shapeRenderer.rect(r.x, r.y, r.width, r.height);
+            shapeRenderer.setColor(active ? new Color(.38f, .88f, .78f, 1f) : new Color(.68f, .53f, .25f, .9f));
+            shapeRenderer.rect(r.x, r.y + r.height - 2f, r.width, 2f);
         }
         shapeRenderer.end();
+
         batch.begin();
-        font.getData().setScale(.5f);
+        font.getData().setScale(compact ? .34f : .43f);
         for (int i = 0; i < uiButtons.length; i++) {
             String label;
-            if (i == 0)
-                label = "ARROW (" + player.getArrowsRemaining() + (bounceArrows > 0 ? " +" + bounceArrows + "B" : "") + ")";
-            else if (i <= 3)
-                label = (i - 1 < ownedSpells.size) ? ownedSpells.get(i - 1).getLabel() + " (" + manaCost(ownedSpells.get(i - 1)) + ")" : "-";
+            if (i == 0) label = compact ? "ARROW " + player.getArrowsRemaining() : "ARROW (" + player.getArrowsRemaining() + (bounceArrows > 0 ? " +" + bounceArrows + "B" : "") + ")";
+            else if (i <= 3) label = (i - 1 < ownedSpells.size) ? (compact ? ownedSpells.get(i - 1).getLabel() : ownedSpells.get(i - 1).getLabel() + " (" + manaCost(ownedSpells.get(i - 1)) + ")") : "EMPTY";
             else if (i == 4) label = "CANCEL";
-            else if (i == 5) label = "SACRIFICE";
-            else label = roomRerolled ? "REROLL (used)" : "REROLL (1)";
+            else if (i == 5) label = compact ? "SACRIFICE" : "SACRIFICE";
+            else label = roomRerolled ? "REROLL USED" : "REROLL";
             Rectangle r = uiButtons[i];
-            font.setColor(Color.WHITE);
-            font.draw(batch, label, r.x + 8f, r.y + r.height / 2f + font.getCapHeight() / 2f);
+            font.setColor(new Color(.92f, .94f, 1f, 1f));
+            GlyphLayout layout = new GlyphLayout(font, label);
+            font.draw(batch, label, r.x + Math.max(4f, (r.width - layout.width) / 2f),
+                r.y + r.height / 2f + layout.height / 2f);
         }
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
