@@ -27,6 +27,8 @@ import io.github.chesslike.game.*;
 
 import java.util.Random;
 
+import static io.github.chesslike.game.EnemyCurse.HUNTER;
+
 public class Main extends Game {
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
@@ -40,6 +42,7 @@ public class Main extends Game {
         Enemy.DeathAnimationType.IMPLODE
     };
     private int deathAnimationCursor = 0;
+    private GameBackdrop gameBackdrop;
 
     // ---------- Capture slash FX ----------
     private static class Slash {
@@ -510,6 +513,13 @@ public class Main extends Game {
     private final Rectangle returnMenuButton = new Rectangle();
     private final Array<Spark> sparks = new Array<>();
     private Preferences savePrefs;
+    private final Array<Card> flyingCards = new Array<>();
+    // Played or sacrificed card pops, slants and flies onto the player's tile
+    private void sendCardAway(Card c) {
+        c.popAndFly(tileCenterX(player.getX()) - Card.WIDTH / 2f, tileCenterY(player.getY()) - Card.HEIGHT / 2f);
+        flyingCards.add(c);
+    }
+
 
     private int playerMaxHp = 3;
     private int playerHp = 3;
@@ -759,6 +769,8 @@ public class Main extends Game {
         arrowTexture = new Texture(Gdx.files.internal("pixelarrow.png"));
         arrowTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         Card.loadTextures();
+        gameBackdrop = new GameBackdrop();
+        gameBackdrop.load();
         RewardScreen.loadTextures();
         shapeRenderer = new ShapeRenderer();
         roguelikeBackdrop = new RoguelikeBackdrop();
@@ -1592,7 +1604,7 @@ public class Main extends Game {
             pool.add(c);
         }
         if (difficulty >= 3) {
-            EnemyCurse[] tier1 = {EnemyCurse.BRUTAL, EnemyCurse.CRIPPLING, EnemyCurse.CORROSIVE, EnemyCurse.HUNTER};
+            EnemyCurse[] tier1 = {EnemyCurse.BRUTAL, EnemyCurse.CRIPPLING, EnemyCurse.CORROSIVE, HUNTER};
             for (EnemyCurse c : tier1) {
                 pool.add(c);
                 pool.add(c);
@@ -1614,50 +1626,16 @@ public class Main extends Game {
     }
 
     private void positionCards() {
-        if (hand == null || hand.size == 0) {
-            handPageIndex = 0;
-            handCycleButton.set(0, 0, 0, 0);
-            return;
-        }
+        if (hand == null || hand.size == 0) return;
+        HandLayout.apply(hand, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), boardRight());
+    }
+    //TODO: Put where it supposed to be
+    //        gameBackdrop.setTheme(GameBackdrop.Theme.forFloor(floor));
+    //        gameBackdrop.setAccent(GameBackdrop.Accent.FIRE);   // Pyromancer room; NONE turns it off
+    //        // damage flash: setAccent(Accent.BLOOD), then setAccent(Accent.NONE) after about 0.3 s
 
-        int pageCount = Math.max(1, (hand.size + VISIBLE_HAND_CARDS - 1) / VISIBLE_HAND_CARDS);
-        handPageIndex = Math.floorMod(handPageIndex, pageCount);
-
-        float screenW = Gdx.graphics.getWidth();
-        // Card slots use the same dimensions as the 256x328 artwork rendered at half size.
-        // Clamp here as well as in Card.setLayoutScale so slot spacing and hitboxes agree
-        // on narrow mobile viewports.
-        float scale = MathUtils.clamp(
-            Math.min(currentCardScale(), Math.min(1f, screenW / 1100f)), 0.45f, 1f
-        );
-        float cw = Card.BASE_WIDTH * scale;
-        float ch = Card.BASE_HEIGHT * scale;
-        float gap = 8f * scale;
-        float buttonW = 42f * scale;
-        float buttonH = 54f * scale;
-        float totalW = VISIBLE_HAND_CARDS * cw + (VISIBLE_HAND_CARDS - 1) * gap + buttonW + gap;
-        // Keep the hand tucked further to the right while preserving a touch-safe edge margin.
-        float startX = Math.max(12f, screenW - totalW - 8f);
-        float y = Math.max(12f, 18f);
-
-        for (int i = 0; i < hand.size; i++) {
-            Card card = hand.get(i);
-            card.setLayoutScale(scale);
-            int visibleIndex = i - handPageIndex * VISIBLE_HAND_CARDS;
-            if (visibleIndex >= 0 && visibleIndex < VISIBLE_HAND_CARDS) {
-                card.setPosition(startX + visibleIndex * (cw + gap), y);
-            } else {
-                // Keep cards in the hand but outside the viewport so only three render.
-                card.setPosition(-cw - 20f, -ch - 20f);
-            }
-        }
-
-        handCycleButton.set(
-            startX + VISIBLE_HAND_CARDS * (cw + gap),
-            y + (ch - buttonH) * .5f,
-            buttonW,
-            buttonH
-        );
+    private float boardRight() {
+        return Player.getBoardX() + Player.BOARD_SIZE * Player.TILE_SIZE;
     }
 
     private int visibleHandStart() {
@@ -1694,10 +1672,10 @@ public class Main extends Game {
 
     private void updateCardHover() {
         float mx = Gdx.input.getX(), my = Gdx.graphics.getHeight() - Gdx.input.getY();
-        int start = visibleHandStart(), end = visibleHandEnd();
-        for (int i = 0; i < hand.size; i++) {
-            Card card = hand.get(i);
-            card.setHovered(i >= start && i < end && card.isClicked(mx, my));
+        for (Card c : hand) {
+            boolean over = c.isClicked(mx, my);
+            c.setHovered(over);
+            if (over) c.trackPointer(mx);
         }
     }
 
@@ -1777,10 +1755,10 @@ public class Main extends Game {
         }
         Card.MovementType[] types = {Card.MovementType.KNIGHT, Card.MovementType.BISHOP, Card.MovementType.ROOK, Card.MovementType.QUEEN, Card.MovementType.PAWN, Card.MovementType.DASH, Card.MovementType.CLAUDE};
         Card c = createCard(types[random.nextInt(types.length)]);
-        hand.add(c);
+        hand.add(c);                                   // newCard in addRandomCardToHand()
+        c.dealFrom(Gdx.graphics.getWidth() + 120f, -200f);
+        c.dealFlipIn();
         positionCards();
-        playSfx(drawSound);
-        message("You received a " + c.getName() + "!", 2f);
     }
 
     // Enemy piece breaks into falling fragments
@@ -2857,6 +2835,7 @@ public class Main extends Game {
         player.setSelected(false);
 
         hand.removeValue(sacrificed, true);
+        sendCardAway(sacrificed);
         cardModifiers.remove(sacrificed);
         roomSacrificed = true;
         objectiveProgress = 1;
@@ -3322,15 +3301,9 @@ public class Main extends Game {
     }
 
     // Same scale maths as positionCards(), so the dragged card is centred on the pointer
+    // Same scale maths as positionCards(), so the dragged card is centred on the pointer
     private float currentCardScale() {
-        float h = Gdx.graphics.getHeight();
-        int n = Math.max(1, hand.size);
-        float boardRight = Player.getBoardX() + Player.BOARD_SIZE * Player.getTileSize();
-        float sideSpace = Gdx.graphics.getWidth() - boardRight - 16f;
-        float widthScale = sideSpace / 115f;
-        float requiredHeight = 155f * (1f + (n - 1) * 0.66f);
-        float heightScale = (h - 32f) / requiredHeight;
-        return MathUtils.clamp(Math.min(1.05f, Math.min(widthScale, heightScale)), 0.55f, 1.05f);
+        return HandLayout.scaleFor(hand.size, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), boardRight());
     }
 
     private void selectCardFromTap(Card c) {
@@ -3389,7 +3362,7 @@ public class Main extends Game {
             }
             if (draggedCard != null) {
                 float s = draggedCard.getSlotWidth() / Card.BASE_WIDTH;
-                draggedCard.setPosition(x - Card.BASE_WIDTH * s / 2f, y - Card.BASE_HEIGHT * s / 2f);
+                draggedCard.setPosition(x - Card.WIDTH * s / 2f, y - Card.HEIGHT * s / 2f);
             }
             return true;
         }
@@ -3932,11 +3905,13 @@ public class Main extends Game {
 
         Card.MovementType type = types[random.nextInt(types.length)];
 
-        Card newCard = createCard(type);
-        hand.add(newCard);
+        Card c = createCard(type);
+        hand.add(c);                                   // newCard in addRandomCardToHand()
+        c.dealFrom(Gdx.graphics.getWidth() + 120f, -200f);
+        c.dealFlipIn();
         positionCards();
 
-        message("NEW CARD: " + newCard.getName(), 1.2f);
+        message("NEW CARD: " + c.getName(), 1.2f);
     }
 
     // Icon reference page: every curse and status icon with its meaning. Called inside an active batch.
@@ -5313,6 +5288,7 @@ public class Main extends Game {
         boolean valid = activeCard.hasTeleportationInfusion() ? tx >= 0 && tx < Player.BOARD_SIZE && ty >= 0 && ty < Player.BOARD_SIZE : player.isValidMove(tx, ty, activeCard.getMovementRules(), board);
         if (!valid) {
             playSfx(errorSound);
+            activeCard.shake();
             message("Invalid move!", 1.5f);
             return;
         }
@@ -5634,7 +5610,10 @@ public class Main extends Game {
         }
         int surge = card.hasManaSurge() ? 2 : 0;
         if (surge > 0) spawnFloat("+2 MP", tileCenterX(player.getX()), tileCenterY(player.getY()) + 48f, .4f, .65f, 1f);
-        if (card.isUsed()) hand.removeValue(card, true);
+        if (card.isUsed()) {
+            hand.removeValue(card, true);
+            sendCardAway(card);
+        }
         mana = Math.min(getMaxMana(), mana + MANA_REGEN_PER_CARD + surge + (hasRelic(Relic.Blessing.MANA_SPRING) ? 1 : 0) + (runPact[0] ? 1 : 0));
         positionCards();
         giveRandomCard();
@@ -6126,7 +6105,7 @@ public class Main extends Game {
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
             if (!e.isAlive()) continue;
-            if (cloaked && enemyCurses.get(e) != EnemyCurse.HUNTER) continue;
+            if (cloaked && enemyCurses.get(e) != HUNTER) continue;
 
             Integer stun = stunnedTurns.get(e);
             if (stun != null && stun > 0) {
@@ -7667,6 +7646,11 @@ public class Main extends Game {
         }
 
         for (Card c : hand) c.update(delta);
+        for (int i = flyingCards.size - 1; i >= 0; i--) {
+            Card f = flyingCards.get(i);
+            f.update(delta);
+            if (f.isFlightDone()) flyingCards.removeIndex(i);
+        }
         if (!gameOverScreen.isVisible() && !shopScreen.isVisible() && !blitzRelicShop.isVisible()) updateCardHover();
         checkEnemyLandings();
         handleInput();
@@ -7692,8 +7676,15 @@ public class Main extends Game {
         updateSpellFx(delta);
         updateFloats(delta);
         updateSlashes(delta);
-        roguelikeBackdrop.render(batch, shapeRenderer, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), uiTime);
+        gameBackdrop.update(delta);
+        gameBackdrop.drawBackground(batch, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         board.render();
+        float boardPx = Player.BOARD_SIZE * Player.TILE_SIZE;
+        gameBackdrop.drawBoardFrame(batch, Player.getBoardX(), Player.getBoardY(), boardPx);
+        gameBackdrop.drawHandPanel(batch, Player.getBoardX() + boardPx + 12f, Player.getBoardY(),
+            Gdx.graphics.getWidth() - (Player.getBoardX() + boardPx) - 24f, boardPx);
+        gameBackdrop.drawHudBar(batch, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+
         renderPoisonTiles();
         renderEnemyIntents();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -7704,6 +7695,9 @@ public class Main extends Game {
         batch.begin();
         for (int i = visibleHandStart(); i < visibleHandEnd(); i++) {
             hand.get(i).drawShape(batch);
+        }
+        for (int i = 0; i < flyingCards.size; i++) {
+            flyingCards.get(i).drawShape(batch);
         }
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
@@ -7726,6 +7720,9 @@ public class Main extends Game {
         for (int i = handPageIndex * VISIBLE_HAND_CARDS;
              i < Math.min(hand.size, (handPageIndex + 1) * VISIBLE_HAND_CARDS); i++) {
             hand.get(i).drawText(batch, font);
+        }
+        for (int i = 0; i < flyingCards.size; i++) {
+            flyingCards.get(i).drawText(batch, font);
         }
         if (hand.size > VISIBLE_HAND_CARDS) {
             font.getData().setScale(.55f);
@@ -7891,6 +7888,7 @@ public class Main extends Game {
         for (Texture t : iconTex.values()) t.dispose();
         for (int i = 0; i < extraSfx.size; i++) extraSfx.get(i).dispose();
         Card.disposeTextures();
+        if (gameBackdrop != null) gameBackdrop.dispose();
     }
 
     // Crumble debris (enemy pieces breaking apart)
