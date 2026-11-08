@@ -128,6 +128,30 @@ public final class CardView {
             batch.setColor(c.r * shade, c.g * shade, c.b * shade, c.a);
         }
 
+        // Enchanted cards radiate a living aura behind the frame.
+        // The pulse is subtle at rest and brightens while the card is selected.
+        if (!card.isShowingBack() && card.hasAnyAugment() && !card.isUsed()) {
+            float pulse = 0.5f + 0.5f * MathUtils.sin(card.getPulseTime() * 3.2f);
+            float glowScale = 1.035f + pulse * 0.025f;
+            float glowW = w * glowScale;
+            float glowH = h * glowScale;
+            float glowAlpha = 0.16f + pulse * 0.12f;
+
+            if (card.hasFury()) {
+                batch.setColor(1f, 0.20f, 0.12f, glowAlpha);
+            } else if (card.hasManaSurge()) {
+                batch.setColor(0.18f, 0.55f, 1f, glowAlpha);
+            } else {
+                // General enchantment aura: arcane violet with a warm gold core.
+                batch.setColor(0.62f, 0.28f, 1f, glowAlpha);
+            }
+
+            batch.draw(augmentedRegion,
+                cx - glowW / 2f, cy - glowH / 2f,
+                glowW / 2f, glowH / 2f,
+                glowW, glowH, sx, 1f, card.getRotation());
+        }
+
         batch.draw(region, cx - w / 2f, cy - h / 2f, w / 2f, h / 2f, w, h, sx, 1f, card.getRotation());
         batch.setColor(Color.WHITE);
     }
