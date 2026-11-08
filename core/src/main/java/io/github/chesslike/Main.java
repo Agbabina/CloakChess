@@ -180,7 +180,6 @@ public class Main extends Game {
     private float enemyIntentDelay = 0f;
     private static final Color COL_BURN = new Color(1f, .35f, .12f, 1f);
     // ---------- Tutorial ----------
-    // ---------- Tutorial ----------
     private static final String[] TUT_TITLES = {"THE BASICS", "MOVES - TAP A CARD", "CARDS", "AUGMENTS", "MANA & SPELLS", "DEFENSE & HP", "CURSES & STATUS 1/3", "CURSES & STATUS 2/3", "CURSES & STATUS 3/3", "OMENS", "RUN SYSTEMS", "BLITZ MODE", "BLITZ SCORING", "BLITZ RELICS", "BLITZ TIME GAMBLE"};
     private static final int TUT_MOVES_PAGE = 1;
     private static final int TUT_AUGMENT_PAGE = 3;
@@ -1629,11 +1628,6 @@ public class Main extends Game {
         if (hand == null || hand.size == 0) return;
         HandLayout.apply(hand, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), boardRight());
     }
-    //TODO: Put where it supposed to be
-    //        gameBackdrop.setTheme(GameBackdrop.Theme.forFloor(floor));
-    //        gameBackdrop.setAccent(GameBackdrop.Accent.FIRE);   // Pyromancer room; NONE turns it off
-    //        // damage flash: setAccent(Accent.BLOOD), then setAccent(Accent.NONE) after about 0.3 s
-
     private float boardRight() {
         return Player.getBoardX() + Player.BOARD_SIZE * Player.getTileSize();
     }
@@ -3300,8 +3294,7 @@ public class Main extends Game {
         batch.end();
     }
 
-    // Same scale maths as positionCards(), so the dragged card is centred on the pointer
-    // Same scale maths as positionCards(), so the dragged card is centred on the pointer
+    // Keep drag sizing in sync with the hand layout used by positionCards().
     private float currentCardScale() {
         return HandLayout.scaleFor(hand.size, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), boardRight());
     }
@@ -3329,6 +3322,7 @@ public class Main extends Game {
         // Dragging only works when no card/spell/arrow mode is active
         if (activeCard != null || shootMode || selectedSpell != null) {
             if (draggedCard != null) {
+                draggedCard.stopDrag();
                 draggedCard = null;
                 positionCards();
             }
@@ -3359,10 +3353,10 @@ public class Main extends Game {
         if (Gdx.input.isTouched()) {
             if (draggedCard == null && Math.hypot(x - dragDownX, y - dragDownY) > DRAG_THRESHOLD) {
                 draggedCard = dragCandidate;
+                draggedCard.startDrag(x, y);
             }
             if (draggedCard != null) {
-                float s = draggedCard.getSlotWidth() / Card.BASE_WIDTH;
-                draggedCard.setPosition(x - Card.WIDTH * s / 2f, y - Card.HEIGHT * s / 2f);
+                draggedCard.dragTo(x, y);
             }
             return true;
         }
@@ -3377,6 +3371,7 @@ public class Main extends Game {
         }
 
         Card dragged = draggedCard;
+        dragged.stopDrag();
         draggedCard = null;
 
         Card target = null;
@@ -3917,7 +3912,6 @@ public class Main extends Game {
     // Icon reference page: every curse and status icon with its meaning. Called inside an active batch.
     private static final int TUT_ITEMS_PER_PAGE = 8;
 
-    // Icon reference page: every curse and status icon with its meaning. Called inside an active batch.
     private void renderTutorialCurses(float w, float top, int page) {
         EnemyCurse[] cs = EnemyCurse.values();
         int total = cs.length + 4;
