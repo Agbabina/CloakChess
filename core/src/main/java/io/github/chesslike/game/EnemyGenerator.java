@@ -230,8 +230,7 @@ public class EnemyGenerator {
                 return "chameleon.png";
 
             case HUNTER:
-                // Temporary placeholder until dedicated Hunter artwork is supplied.
-                return "b_knight_png_256px.png";
+                return "hunter.png";
 
             default:
                 return "b_pawn_png_256px.png";
