@@ -1635,7 +1635,7 @@ public class Main extends Game {
     //        // damage flash: setAccent(Accent.BLOOD), then setAccent(Accent.NONE) after about 0.3 s
 
     private float boardRight() {
-        return Player.getBoardX() + Player.BOARD_SIZE * Player.TILE_SIZE;
+        return Player.getBoardX() + Player.BOARD_SIZE * Player.getTileSize();
     }
 
     private int visibleHandStart() {
@@ -7679,7 +7679,7 @@ public class Main extends Game {
         gameBackdrop.update(delta);
         gameBackdrop.drawBackground(batch, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         board.render();
-        float boardPx = Player.BOARD_SIZE * Player.TILE_SIZE;
+        float boardPx = Player.BOARD_SIZE * Player.getTileSize();
         gameBackdrop.drawBoardFrame(batch, Player.getBoardX(), Player.getBoardY(), boardPx);
         gameBackdrop.drawHandPanel(batch, Player.getBoardX() + boardPx + 12f, Player.getBoardY(),
             Gdx.graphics.getWidth() - (Player.getBoardX() + boardPx) - 24f, boardPx);
