@@ -1648,6 +1648,7 @@ public class Main extends Game {
         activeCard = null;
         player.setSelected(false);
         dragCandidate = null;
+        if (draggedCard != null) draggedCard.stopDrag();
         draggedCard = null;
         tooltipEnemy = null;
 
@@ -3294,11 +3295,6 @@ public class Main extends Game {
         batch.end();
     }
 
-    // Keep drag sizing in sync with the hand layout used by positionCards().
-    private float currentCardScale() {
-        return HandLayout.scaleFor(hand.size, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), boardRight());
-    }
-
     private void selectCardFromTap(Card c) {
         clickSound.play();
         activeCard = c;
@@ -3315,6 +3311,7 @@ public class Main extends Game {
         // the tap before the badge can be applied.
         if (usingAugmentBadge) {
             dragCandidate = null;
+            if (draggedCard != null) draggedCard.stopDrag();
             draggedCard = null;
             return false;
         }
@@ -3335,6 +3332,7 @@ public class Main extends Game {
         // Press: remember which card was grabbed
         if (Gdx.input.justTouched()) {
             dragCandidate = null;
+            if (draggedCard != null) draggedCard.stopDrag();
             draggedCard = null;
             for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
                 if (hand.get(i).isClicked(x, y)) {
@@ -4208,6 +4206,7 @@ public class Main extends Game {
         arrowInFlight = false;
         pendingHitEnemy = null;
         activeCard = null;
+        if (draggedCard != null) draggedCard.stopDrag();
         draggedCard = null;
         dragCandidate = null;
         if (player != null) player.setSelected(false);
