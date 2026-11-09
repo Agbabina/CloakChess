@@ -571,6 +571,8 @@ public class Main extends Game {
     private final Rectangle enchantmentsButton = new Rectangle();
     private final Rectangle tacticalMarkButton = new Rectangle();
     private final Rectangle royalGuardButton = new Rectangle();
+    private final Rectangle inventoryTabButton = new Rectangle();
+    private boolean inventoryOpen = false;
     private boolean royalGuardAvailable = true;
     private boolean royalGuardArmed = false;
     private boolean placingTacticalMark = false;
@@ -3227,25 +3229,19 @@ public class Main extends Game {
     // Seven real action slots: arrow, three owned spells, cancel, sacrifice and reroll.
     // The same slots adapt to portrait phones and landscape laptop screens.
     private void layoutUiButtons() {
-        float w = Gdx.graphics.getWidth();
-        float h = Gdx.graphics.getHeight();
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
         boolean portrait = h > w;
-        float gap = portrait ? 5f : 7f;
-        float margin = portrait ? 10f : 18f;
-        float buttonH = portrait
-            ? MathUtils.clamp(h * .052f, 36f, 44f)
-            : MathUtils.clamp(h * .066f, 44f, 50f);
+        float gap = portrait ? 6f : 8f;
+        float panelW = Math.min(portrait ? w - 20f : 330f, w - 20f);
+        float panelX = (w - panelW) * .5f;
+        float buttonH = portrait ? 38f : 42f;
         int columns = portrait ? 4 : 2;
-        float buttonW = portrait
-            ? (w - margin * 2f - gap * (columns - 1)) / columns
-            : Math.min(142f, Math.max(104f, w * .105f));
-        float top = portrait ? h - 160f : Math.min(h - 158f, h * .78f);
-
+        float buttonW = (panelW - 24f - gap * (columns - 1)) / columns;
+        float top = portrait ? Math.min(h - 205f, 330f) : Math.min(h - 190f, 360f);
         for (int i = 0; i < uiButtons.length; i++) {
-            int col = i % columns;
-            int row = i / columns;
-            float y = top - buttonH - row * (buttonH + gap);
-            uiButtons[i].set(margin + col * (buttonW + gap), y, buttonW, buttonH);
+            int col = i % columns, row = i / columns;
+            uiButtons[i].set(panelX + 12f + col * (buttonW + gap),
+                top - buttonH - row * (buttonH + gap), buttonW, buttonH);
         }
     }
 
@@ -3259,6 +3255,7 @@ public class Main extends Game {
     }
 
     private boolean handleUiTap(float x, float y) {
+        if (!inventoryOpen) return false;
         layoutUiButtons();
         for (int i = 0; i < uiButtons.length; i++) {
             if (!uiButtons[i].contains(x, y)) continue;
@@ -3298,7 +3295,7 @@ public class Main extends Game {
     }
 
     private void renderUiButtons() {
-        if (gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        if (!inventoryOpen || gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
         layoutUiButtons();
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
@@ -5049,8 +5046,14 @@ public class Main extends Game {
         layoutEnchantmentButton();
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
-            layoutRoyalGuardButton();
-            if (!blitzMode && royalGuardButton.contains(ux, uy)) {
+            layoutInventoryTabButton();
+            if (inventoryTabButton.contains(ux, uy)) {
+                inventoryOpen = !inventoryOpen;
+                clickSound.play();
+                return;
+            }
+            if (inventoryOpen) layoutRoyalGuardButton();
+            if (inventoryOpen && !blitzMode && royalGuardButton.contains(ux, uy)) {
                 if (!royalGuardAvailable || royalGuardArmed) {
                     playSfx(errorSound);
                     message(royalGuardArmed ? "Royal Guard is already armed." : "Royal Guard returns next room.", 1.6f);
@@ -5069,8 +5072,8 @@ public class Main extends Game {
                 clickSound.play();
                 return;
             }
-            layoutTacticalMarkButton();
-            if (!blitzMode && tacticalMarkButton.contains(ux, uy)) {
+            if (inventoryOpen) layoutTacticalMarkButton();
+            if (inventoryOpen && !blitzMode && tacticalMarkButton.contains(ux, uy)) {
                 if (!tacticalMarkAvailable) {
                     playSfx(errorSound);
                     message("Tactical Mark is spent until the next room.", 1.6f);
@@ -5086,7 +5089,7 @@ public class Main extends Game {
                 clickSound.play();
                 return;
             }
-            if (!blitzMode && enchantmentsButton.contains(ux, uy)) {
+            if (inventoryOpen && !blitzMode && enchantmentsButton.contains(ux, uy)) {
                 clickSound.play();
                 kingEnchantmentScreen.show();
                 return;
@@ -5128,6 +5131,10 @@ public class Main extends Game {
         }
         if (handleCardDrag()) return;
 
+        if (Gdx.input.isKeyJustPressed(Input.Keys.I)) {
+            inventoryOpen = !inventoryOpen;
+            return;
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             enemyDeckVisible = true;
             return;
@@ -7391,13 +7398,64 @@ public class Main extends Game {
         royalGuardArmed = false;
     }
 
+    private void layoutInventoryTabButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        inventoryTabButton.set(w - 118f, h - 58f, 106f, 42f);
+    }
+
+    private void renderInventoryTabButton() {
+        if (menuVisible || gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible || blitzMode) return;
+        layoutInventoryTabButton();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(inventoryOpen ? .20f : .055f, inventoryOpen ? .25f : .075f, inventoryOpen ? .31f : .12f, .98f);
+        shapeRenderer.rect(inventoryTabButton.x, inventoryTabButton.y, inventoryTabButton.width, inventoryTabButton.height);
+        shapeRenderer.setColor(.95f, .78f, .34f, 1f);
+        shapeRenderer.rect(inventoryTabButton.x, inventoryTabButton.y + inventoryTabButton.height - 3f, inventoryTabButton.width, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.43f);
+        font.setColor(new Color(.98f, .86f, .57f, 1f));
+        font.draw(batch, inventoryOpen ? "CLOSE  [I]" : "INVENTORY  [I]", inventoryTabButton.x + 8f, inventoryTabButton.y + 25f);
+        font.getData().setScale(1f); font.setColor(Color.WHITE); batch.end();
+    }
+
+    private void renderInventoryTabFrame() {
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        float panelW = Math.min(w - 20f, h > w ? w - 12f : 350f);
+        float panelH = Math.min(h - 100f, h > w ? 470f : 500f);
+        float x = (w - panelW) * .5f, y = (h - panelH) * .5f;
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0f, 0f, 0f, .58f); shapeRenderer.rect(0f, 0f, w, h);
+        shapeRenderer.setColor(.035f, .045f, .068f, .98f); shapeRenderer.rect(x, y, panelW, panelH);
+        shapeRenderer.setColor(.88f, .68f, .29f, 1f); shapeRenderer.rect(x, y + panelH - 3f, panelW, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.72f); font.setColor(new Color(.98f, .82f, .42f, 1f));
+        font.draw(batch, "FIELD INVENTORY", x + 16f, y + panelH - 22f);
+        font.getData().setScale(.34f); font.setColor(new Color(.68f, .74f, .84f, 1f));
+        font.draw(batch, "TACTICS  •  OATH  •  SPELLS  •  CORRUPTION", x + 16f, y + panelH - 43f);
+        font.getData().setScale(.38f); font.setColor(Color.WHITE);
+        font.draw(batch, "SPELLS & ACTIONS", x + 16f, y + panelH - 66f);
+        font.draw(batch, "RUN POWERS", x + 16f, y + 174f);
+        font.draw(batch, "KING'S OATHS  " + kingEnchantments.getActiveEnchantments().size + " ACTIVE", x + 16f, y + 150f);
+        font.draw(batch, "TACTICAL MARK  " + (tacticalMarkAvailable ? "READY" : "SPENT"), x + 16f, y + 126f);
+        font.draw(batch, "ROYAL GUARD  " + (royalGuardAvailable ? "READY" : "SPENT"), x + 16f, y + 104f);
+        font.draw(batch, "CORRUPTION  " + corruption.getLevel() + "%  —  " + corruption.getStatusText(), x + 16f, y + 82f);
+        font.getData().setScale(.30f); font.setColor(new Color(.62f, .68f, .78f, 1f));
+        font.draw(batch, "Press I or tap CLOSE to return to the board", x + 16f, y + 18f);
+        font.getData().setScale(1f); font.setColor(Color.WHITE); batch.end();
+    }
+
     private void layoutRoyalGuardButton() {
         float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
-        royalGuardButton.set(Math.max(10f, w - 194f), Math.max(10f, h - 224f), 176f, 38f);
+        float panelW = Math.min(w - 20f, h > w ? w - 12f : 350f);
+        float x = (w - panelW) * .5f, y = (h - Math.min(h - 100f, h > w ? 470f : 500f)) * .5f;
+        royalGuardButton.set(x + 12f, y + 48f, panelW - 24f, 34f);
     }
 
     private void renderRoyalGuardButton() {
-        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible()
             || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
         layoutRoyalGuardButton();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -7423,11 +7481,13 @@ public class Main extends Game {
 
     private void layoutTacticalMarkButton() {
         float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
-        tacticalMarkButton.set(Math.max(10f, w - 194f), Math.max(10f, h - 178f), 176f, 38f);
+        float panelW = Math.min(w - 20f, h > w ? w - 12f : 350f);
+        float x = (w - panelW) * .5f, y = (h - Math.min(h - 100f, h > w ? 470f : 500f)) * .5f;
+        tacticalMarkButton.set(x + 12f, y + 88f, panelW - 24f, 34f);
     }
 
     private void renderTacticalMarkButton() {
-        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible()
             || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
         layoutTacticalMarkButton();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -7451,11 +7511,13 @@ public class Main extends Game {
 
     private void layoutEnchantmentButton() {
         float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
-        enchantmentsButton.set(Math.max(10f, w - 194f), Math.max(10f, h - 132f), 176f, 38f);
+        float panelW = Math.min(w - 20f, h > w ? w - 12f : 350f);
+        float x = (w - panelW) * .5f, y = (h - Math.min(h - 100f, h > w ? 470f : 500f)) * .5f;
+        enchantmentsButton.set(x + 12f, y + 128f, panelW - 24f, 34f);
     }
 
     private void renderEnchantmentButton() {
-        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible()
             || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
         layoutEnchantmentButton();
         boolean chosen = !kingEnchantments.getActiveEnchantments().isEmpty();
@@ -7532,17 +7594,19 @@ public class Main extends Game {
     }
 
     private void renderCorruptionHud() {
-        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible()
             || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
 
         float screenW = Gdx.graphics.getWidth();
         float screenH = Gdx.graphics.getHeight();
         // A compact top-right HUD chip: health/objectives own the left column,
         // the board owns the centre, and the card hand stays at the bottom-right.
-        float w = Math.min(236f, Math.max(172f, screenW * 0.21f));
+        float w = Math.min(310f, screenW - 44f);
         float panelH = 54f;
-        float x = Math.max(10f, screenW - w - 18f);
-        float y = Math.max(10f, screenH - panelH - 18f);
+        float x = (screenW - w) * .5f;
+        float panelW = Math.min(screenW - 20f, screenH > screenW ? screenW - 12f : 350f);
+        float panelY = (screenH - Math.min(screenH - 100f, screenH > screenW ? 470f : 500f)) * .5f;
+        float y = panelY + 210f;
         float barH = 8f;
         float p = MathUtils.clamp(corruption.getProgress(), 0f, 1f);
 
@@ -7760,12 +7824,14 @@ public class Main extends Game {
         renderObjectivePanel();
         renderBlitzHud();
         renderBlitzComboText();
+        renderInventoryTabFrame();
         renderUiButtons();
         renderTooltip();
         renderCorruptionHud();
         renderEnchantmentButton();
         renderTacticalMarkButton();
         renderRoyalGuardButton();
+        renderInventoryTabButton();
         kingEnchantmentScreen.render(batch, shapeRenderer, font, kingEnchantments);
         rewardScreen.render(hand);
         if (shopScreen.isVisible()) shopScreen.render(gold);
