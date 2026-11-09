@@ -121,6 +121,8 @@ public class Card {
 
     // Drives the pulsing glow on the Claude / Shifter cards
     private float pulseTime = 0f;
+    private float enchantBindTimer = -1f;
+    private static final float ENCHANT_BIND_DURATION = 0.92f;
 
     private static final float HOVER_LIFT = 14f;
     private static final float SELECTED_LIFT = 24f;
@@ -469,7 +471,12 @@ public class Card {
         if (augment == null) {
             return;
         }
-        augments.add(augment.getType());
+        // Trigger a one-shot binding animation only when this augment is newly added.
+        if (augments.add(augment.getType())) {
+            enchantBindTimer = 0f;
+            popVel += 0.9f;
+            shakeTime = SHAKE_DURATION;
+        }
 
         switch (augment.getType().name()) {
 
@@ -748,6 +755,10 @@ public class Card {
     public void update(float delta) {
 
         pulseTime += delta;
+        if (enchantBindTimer >= 0f) {
+            enchantBindTimer += delta;
+            if (enchantBindTimer >= ENCHANT_BIND_DURATION) enchantBindTimer = -1f;
+        }
         float dt = Math.min(delta, 1f / 30f);
 
         float targetX = screenX;
@@ -871,6 +882,15 @@ public class Card {
 
     float getPulseTime() {
         return pulseTime;
+    }
+
+    boolean isEnchantmentBinding() {
+        return enchantBindTimer >= 0f;
+    }
+
+    float getEnchantmentBindProgress() {
+        return enchantBindTimer < 0f ? 1f
+            : MathUtils.clamp(enchantBindTimer / ENCHANT_BIND_DURATION, 0f, 1f);
     }
 
     // =========================================================
