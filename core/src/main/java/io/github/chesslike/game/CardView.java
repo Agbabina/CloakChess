@@ -14,12 +14,10 @@ import com.badlogic.gdx.utils.ObjectMap;
 public final class CardView {
 
     private static Texture frameStandard;
-    private static final int ENCHANTED_FRAME_COUNT = 12;
-    private static final float ENCHANTED_FPS = 12f;
-    private static Texture enchantedSheet;
-    private static TextureRegion[] enchantedFrames;
+    private static Texture frameAugmented;
     private static Texture backTexture;                 // optional: card_back.png
     private static TextureRegion standardRegion;
+    private static TextureRegion augmentedRegion;
     private static TextureRegion backRegion;
     // Optional per-augment artwork. Missing files are safely skipped so builds still run.
     private static final ObjectMap<AugmentType, Texture> augmentIcons = new ObjectMap<>();
@@ -47,8 +45,10 @@ public final class CardView {
             standardRegion = new TextureRegion(frameStandard);
         }
 
-        if (enchantedSheet == null) {
-            loadEnchantedFrames();
+        if (frameAugmented == null) {
+            frameAugmented = new Texture(Gdx.files.internal("card_frame_augmented.png"));
+            frameAugmented.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            augmentedRegion = new TextureRegion(frameAugmented);
         }
 
         // Optional card back used by the flip animation.
@@ -74,38 +74,6 @@ public final class CardView {
         }
     }
 
-    private static void loadEnchantedFrames() {
-        String file = "card_frame_enchanted_sheet.png";
-        if (!Gdx.files.internal(file).exists()) {
-            Gdx.app.error("CardView", "Missing " + file + "; enchanted cards will use the standard frame.");
-            return;
-        }
-
-        enchantedSheet = new Texture(Gdx.files.internal(file));
-        enchantedSheet.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-
-        int sheetWidth = enchantedSheet.getWidth();
-        int sheetHeight = enchantedSheet.getHeight();
-        enchantedFrames = new TextureRegion[ENCHANTED_FRAME_COUNT];
-
-        for (int i = 0; i < ENCHANTED_FRAME_COUNT; i++) {
-            int startX = Math.round(i * sheetWidth / (float) ENCHANTED_FRAME_COUNT);
-            int endX = Math.round((i + 1) * sheetWidth / (float) ENCHANTED_FRAME_COUNT);
-            enchantedFrames[i] = new TextureRegion(
-                enchantedSheet, startX, 0, endX - startX, sheetHeight
-            );
-        }
-    }
-
-    private static TextureRegion getEnchantedFrame(Card card) {
-        if (enchantedFrames == null || enchantedFrames.length == 0) {
-            return standardRegion;
-        }
-
-        int frame = MathUtils.floor(card.getPulseTime() * ENCHANTED_FPS);
-        return enchantedFrames[Math.floorMod(frame, ENCHANTED_FRAME_COUNT)];
-    }
-
     public static void disposeTextures() {
 
         if (frameStandard != null) {
@@ -114,10 +82,10 @@ public final class CardView {
             standardRegion = null;
         }
 
-        if (enchantedSheet != null) {
-            enchantedSheet.dispose();
-            enchantedSheet = null;
-            enchantedFrames = null;
+        if (frameAugmented != null) {
+            frameAugmented.dispose();
+            frameAugmented = null;
+            augmentedRegion = null;
         }
 
         if (backTexture != null) {
@@ -136,7 +104,7 @@ public final class CardView {
 
     public static void drawFrame(Card card, SpriteBatch batch) {
 
-        if (batch == null || standardRegion == null) {
+        if (batch == null || standardRegion == null || augmentedRegion == null) {
             return;
         }
 
@@ -154,7 +122,7 @@ public final class CardView {
             float dark = backRegion != null ? 1f : 0.45f;
             batch.setColor(shade * dark, shade * dark, shade * dark, 1f);
         } else {
-            region = card.hasAnyAugment() ? getEnchantedFrame(card) : standardRegion;
+            region = card.hasAnyAugment() ? augmentedRegion : standardRegion;
             applyTint(card, batch);
             Color c = batch.getColor();
             batch.setColor(c.r * shade, c.g * shade, c.b * shade, c.a);
@@ -178,16 +146,10 @@ public final class CardView {
                 batch.setColor(0.62f, 0.28f, 1f, glowAlpha);
             }
 
-            batch.draw(region,
+            batch.draw(augmentedRegion,
                 cx - glowW / 2f, cy - glowH / 2f,
                 glowW / 2f, glowH / 2f,
                 glowW, glowH, sx, 1f, card.getRotation());
-
-            // Restore the card's own tint after drawing the aura.
-            applyTint(card, batch);
-            Color frameColor = batch.getColor();
-            batch.setColor(frameColor.r * shade, frameColor.g * shade,
-                frameColor.b * shade, frameColor.a);
         }
 
         batch.draw(region, cx - w / 2f, cy - h / 2f, w / 2f, h / 2f, w, h, sx, 1f, card.getRotation());
