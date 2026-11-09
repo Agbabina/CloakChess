@@ -30,16 +30,36 @@ public final class HandLayout {
     public static void apply(Array<Card> hand, float screenW, float screenH, float boardRight) {
         if (hand == null || hand.size == 0) return;
 
+        // Portrait phones need a horizontal hand: a vertical right rail would
+        // cover the board and leave no room for touch controls.
+        if (screenH > screenW) {
+            float gap = 8f;
+            float availableW = screenW - EDGE_MARGIN * 2f;
+            float scale = Math.min(0.62f, availableW /
+                (Card.WIDTH * hand.size + gap * Math.max(0, hand.size - 1)));
+            scale = MathUtils.clamp(scale, 0.38f, 0.62f);
+            float cw = Card.WIDTH * scale;
+            float ch = Card.HEIGHT * scale;
+            float stepX = cw + gap;
+            float totalW = cw + Math.max(0, hand.size - 1) * stepX;
+            float startX = Math.max(EDGE_MARGIN, (screenW - totalW) / 2f);
+            float y = 12f;
+            for (int i = 0; i < hand.size; i++) {
+                Card c = hand.get(i);
+                c.setLayoutScale(scale);
+                c.setPosition(startX + i * stepX, y);
+            }
+            return;
+        }
+
         float scale = scaleFor(hand.size, screenW, screenH, boardRight);
         float cw = Card.WIDTH * scale;
         float ch = Card.HEIGHT * scale;
-
         float stepY = ch * STACK_OVERLAP;
         float totalH = ch + Math.max(0, hand.size - 1) * stepY;
         float startY = Math.max(8f, (screenH - totalH) / 2f);
         float startX = screenW - cw - EDGE_MARGIN;
 
-        // On short windows, tighten the overlap before allowing the stack to clip.
         if (totalH > screenH - 16f && hand.size > 1) {
             stepY = Math.max(36f, (screenH - 16f - ch) / (hand.size - 1));
             totalH = ch + (hand.size - 1) * stepY;
