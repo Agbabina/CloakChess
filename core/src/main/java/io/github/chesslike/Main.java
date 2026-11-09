@@ -203,7 +203,7 @@ public class Main extends Game {
         {},
         {
             "Hold up to 5 cards. Each has limited uses.",
-            "Drag one card onto another to combine them.",
+            "Tap a card to select it. Card combinations are currently disabled.",
             "Dash shoves enemies in its path.",
             "SHIFTER changes its movement type after every turn. Check its 'Now:' line.",
             "SACRIFICE (S): lose 1 HP, gain gold, mana and DEF, hit every enemy.",
@@ -3398,105 +3398,18 @@ public class Main extends Game {
     }
 
     // Returns true when it consumed the touch
+    // Card combinations are temporarily disabled. Cards are selected by tapping;
+    // dragging a card onto another must never consume, merge, or replace either card.
     private boolean handleCardDrag() {
-        // Badge mode needs the normal card-tap handler; drag handling would consume
-        // the tap before the badge can be applied.
-        if (usingAugmentBadge) {
-            dragCandidate = null;
-            if (draggedCard != null) draggedCard.stopDrag();
+        if (draggedCard != null) {
+            draggedCard.stopDrag();
             draggedCard = null;
-            return false;
-        }
-
-        // Dragging only works when no card/spell/arrow mode is active
-        if (activeCard != null || shootMode || selectedSpell != null) {
-            if (draggedCard != null) {
-                draggedCard.stopDrag();
-                draggedCard = null;
-                positionCards();
-            }
-            dragCandidate = null;
-            return false;
-        }
-
-        float x = Gdx.input.getX(), y = Gdx.graphics.getHeight() - Gdx.input.getY();
-
-        // Press: remember which card was grabbed
-        if (Gdx.input.justTouched()) {
-            dragCandidate = null;
-            if (draggedCard != null) draggedCard.stopDrag();
-            draggedCard = null;
-            for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
-                if (hand.get(i).isClicked(x, y)) {
-                    dragCandidate = hand.get(i);
-                    break;
-                }
-            }
-            dragDownX = x;
-            dragDownY = y;
-            return dragCandidate != null;
-        }
-
-        if (dragCandidate == null) return false;
-
-        // Held: start dragging once the pointer moves far enough, then follow it
-        if (Gdx.input.isTouched()) {
-            if (draggedCard == null && Math.hypot(x - dragDownX, y - dragDownY) > DRAG_THRESHOLD) {
-                draggedCard = dragCandidate;
-                draggedCard.startDrag(x, y);
-            }
-            if (draggedCard != null) {
-                draggedCard.dragTo(x, y);
-            }
-            return true;
-        }
-
-        // Released
-        Card grabbed = dragCandidate;
-        dragCandidate = null;
-
-        if (draggedCard == null) {          // never moved far enough = it was a tap
-            selectCardFromTap(grabbed);
-            return true;
-        }
-
-        Card dragged = draggedCard;
-        dragged.stopDrag();
-        draggedCard = null;
-
-        Card target = null;
-        for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
-            Card c = hand.get(i);
-            if (c != dragged && c.isClicked(x, y)) {
-                target = c;
-                break;
-            }
-        }
-
-        Card result = (target == null) ? null : CardCombination.combine(dragged, target);
-        if (result != null) {
-            hand.removeValue(dragged, true);
-            hand.removeValue(target, true);
-            cardModifiers.remove(dragged);
-            cardModifiers.remove(target);
-            hand.add(result);
             positionCards();
-            if (combineSound != null) combineSound.play();
-            else augmentSound.play();
-            spawnBurst(x, y, 18, .75f, .55f, 1f, 30f);
-            message("Combined into " + result.getName() + "!", 2f);
-            autosave();
-        } else {
-            positionCards();                // snap back
-            if (target != null) {
-                playSfx(errorSound);
-                message("Those cards can't combine", 1.5f);
-            }
         }
-        return true;
+        dragCandidate = null;
+        return false;
     }
 
-    // ---------- Meta progression (Souls) ----------
     private void loadMeta() {
         souls = metaPrefs.getInteger("souls", 0);
         for (int i = 0; i < upLevels.length; i++) upLevels[i] = metaPrefs.getInteger("up" + i, 0);
