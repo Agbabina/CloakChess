@@ -61,9 +61,14 @@ public final class CardView {
         }
 
         // Full card-face artwork lives at assets/card_face_<movement>.png.
-        Card.MovementType[] faceTypes = {Card.MovementType.KNIGHT, Card.MovementType.BISHOP,
-            Card.MovementType.ROOK, Card.MovementType.QUEEN, Card.MovementType.PAWN,
-            Card.MovementType.DASH, Card.MovementType.CLAUDE};
+        Card.MovementType[] faceTypes = {
+            Card.MovementType.KNIGHT, Card.MovementType.BISHOP, Card.MovementType.ROOK,
+            Card.MovementType.QUEEN, Card.MovementType.PAWN, Card.MovementType.DASH,
+            Card.MovementType.CLAUDE, Card.MovementType.MADROOK, Card.MovementType.JESTER,
+            Card.MovementType.BLINKER, Card.MovementType.CHAMELEON,
+            Card.MovementType.ARCHBISHOP, Card.MovementType.COUNCILLOR,
+            Card.MovementType.SHIFTER, Card.MovementType.LEAPER, Card.MovementType.HUNTER
+        };
         for (Card.MovementType type : faceTypes) {
             if (cardFaces.containsKey(type)) continue;
             String file = "card_face_" + type.name().toLowerCase(java.util.Locale.ROOT) + ".png";
@@ -211,7 +216,24 @@ public final class CardView {
 
         batch.draw(region, cx - w / 2f, cy - h / 2f, w / 2f, h / 2f, w, h, sx, 1f, card.getRotation());
 
-        // Draw the animated enchantment border over the illustrated face.
+        // Bind animation: the enchantment frame sweeps inward and locks onto
+        // the existing illustrated face. It never replaces the card artwork.
+        if (enchantedFrame != null && card.isEnchantmentBinding()) {
+            float p = card.getEnchantmentBindProgress();
+            float eased = p * p * (3f - 2f * p);
+            float bindScale = 1.24f - 0.24f * eased;
+            float bindAlpha = MathUtils.sin(p * MathUtils.PI) * 0.95f;
+            float bindW = w * bindScale;
+            float bindH = h * bindScale;
+            batch.setColor(0.72f, 0.38f, 1f, bindAlpha);
+            batch.draw(enchantedFrame,
+                cx - bindW / 2f, cy - bindH / 2f,
+                bindW / 2f, bindH / 2f,
+                bindW, bindH, sx, 1f,
+                card.getRotation() + (1f - eased) * 18f);
+        }
+
+        // Persistent enchantment border remains attached to the same face.
         if (enchantedFrame != null) {
             batch.setColor(Color.WHITE);
             batch.draw(enchantedFrame, cx - w / 2f, cy - h / 2f,
