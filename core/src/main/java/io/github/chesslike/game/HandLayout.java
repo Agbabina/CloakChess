@@ -3,73 +3,61 @@ package io.github.chesslike.game;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 
-/** Right-side hand stack layout: card scale and positions. */
+/**
+ * Compact bottom-right card dock. Only the current page is positioned;
+ * Main renders at most three cards and the cycle control reveals the next page.
+ */
 public final class HandLayout {
 
-    private static final float STACK_OVERLAP = 0.66f;
-    private static final float SIDE_PADDING = 16f;
-    private static final float VERTICAL_PADDING = 32f;
-    private static final float EDGE_MARGIN = 12f;
-    private static final float MAX_SCALE = 1.05f;
-    private static final float MIN_SCALE = 0.55f;
+    private static final float EDGE_MARGIN = 18f;
+    private static final float CARD_GAP = 12f;
+    private static final float MAX_SCALE = 0.82f;
+    private static final float MIN_SCALE = 0.48f;
 
     private HandLayout() {
     }
 
-    /** Scale that fits `handSize` cards between the board and the screen edge. */
-    public static float scaleFor(int handSize, float screenW, float screenH, float boardRight) {
-        int n = Math.max(1, handSize);
-        float sideSpace = screenW - boardRight - SIDE_PADDING;
-        float widthScale = sideSpace / Card.WIDTH;
-        float requiredHeight = Card.HEIGHT * (1f + (n - 1) * STACK_OVERLAP);
-        float heightScale = (screenH - VERTICAL_PADDING) / requiredHeight;
-        return MathUtils.clamp(Math.min(MAX_SCALE, Math.min(widthScale, heightScale)), MIN_SCALE, MAX_SCALE);
-    }
+    public static void apply(Array<Card> hand, float screenW, float screenH,
+                             float boardRight, int visibleStart, int visibleCount) {
+        if (hand == null || hand.size == 0 || visibleCount <= 0) return;
 
-    /** Clean right-side stack: aligned cards with a controlled overlap, never a diagonal fan. */
-    public static void apply(Array<Card> hand, float screenW, float screenH, float boardRight) {
-        if (hand == null || hand.size == 0) return;
+        int start = MathUtils.clamp(visibleStart, 0, hand.size);
+        int end = Math.min(hand.size, start + visibleCount);
+        int count = end - start;
+        if (count <= 0) return;
 
-        // Portrait phones need a horizontal hand: a vertical right rail would
-        // cover the board and leave no room for touch controls.
+        // A three-card row stays readable on desktop and scales down on narrow phones.
+        float gap = CARD_GAP;
+        float availableW = Math.max(1f, screenW - EDGE_MARGIN * 2f);
+        float scale = Math.min(MAX_SCALE,
+            (availableW - gap * Math.max(0, count - 1)) / (Card.WIDTH * count));
+        scale = MathUtils.clamp(scale, MIN_SCALE, MAX_SCALE);
+
+        // Portrait screens get a slightly smaller, centered dock so the cards
+        // don't cover the board's important lower controls.
         if (screenH > screenW) {
-            float gap = 8f;
-            float availableW = screenW - EDGE_MARGIN * 2f;
-            float scale = Math.min(0.62f, availableW /
-                (Card.WIDTH * hand.size + gap * Math.max(0, hand.size - 1)));
-            scale = MathUtils.clamp(scale, 0.38f, 0.62f);
-            float cw = Card.WIDTH * scale;
-            float ch = Card.HEIGHT * scale;
-            float stepX = cw + gap;
-            float totalW = cw + Math.max(0, hand.size - 1) * stepX;
-            float startX = Math.max(EDGE_MARGIN, (screenW - totalW) / 2f);
-            float y = 12f;
-            for (int i = 0; i < hand.size; i++) {
-                Card c = hand.get(i);
-                c.setLayoutScale(scale);
-                c.setPosition(startX + i * stepX, y);
-            }
-            return;
+            scale = Math.min(scale, 0.58f);
+            gap = 7f;
         }
 
-        float scale = scaleFor(hand.size, screenW, screenH, boardRight);
-        float cw = Card.WIDTH * scale;
-        float ch = Card.HEIGHT * scale;
-        float stepY = ch * STACK_OVERLAP;
-        float totalH = ch + Math.max(0, hand.size - 1) * stepY;
-        float startY = Math.max(8f, (screenH - totalH) / 2f);
-        float startX = screenW - cw - EDGE_MARGIN;
+        float cardW = Card.WIDTH * scale;
+        float cardH = Card.HEIGHT * scale;
+        float stepX = cardW + gap;
+        float totalW = cardW + Math.max(0, count - 1) * stepX;
+        float startX;
 
-        if (totalH > screenH - 16f && hand.size > 1) {
-            stepY = Math.max(36f, (screenH - 16f - ch) / (hand.size - 1));
-            totalH = ch + (hand.size - 1) * stepY;
-            startY = Math.max(8f, (screenH - totalH) / 2f);
+        if (screenH > screenW) {
+            startX = Math.max(EDGE_MARGIN, (screenW - totalW) * 0.5f);
+        } else {
+            // Anchor the hand at the bottom-right, but keep it inside the viewport.
+            startX = Math.max(EDGE_MARGIN, screenW - totalW - EDGE_MARGIN);
         }
 
-        for (int i = 0; i < hand.size; i++) {
-            Card c = hand.get(i);
-            c.setLayoutScale(scale);
-            c.setPosition(startX, startY + i * stepY);
+        float y = Math.max(EDGE_MARGIN, EDGE_MARGIN + cardH * 0.08f);
+        for (int i = start; i < end; i++) {
+            Card card = hand.get(i);
+            card.setLayoutScale(scale);
+            card.setPosition(startX + (i - start) * stepX, y);
         }
     }
 }
