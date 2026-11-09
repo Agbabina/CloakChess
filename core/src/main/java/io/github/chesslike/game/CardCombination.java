@@ -59,17 +59,8 @@ public class CardCombination {
     };
 
     /** Returns a new Card if the two cards combine, otherwise null. */
+    /** Card fusion is intentionally disabled while the new card faces are being balanced. */
     public static Card combine(Card first, Card second) {
-        if (first == null || second == null) return null;
-
-        Card.MovementType t1 = first.getMovementType();
-        Card.MovementType t2 = second.getMovementType();
-
-        for (Recipe r : RECIPES) {
-            if (r.matches(t1, t2)) {
-                return new Card(r.resultName, r.resultType, r.uses);
-            }
-        }
         return null;
     }
 }
