@@ -13,11 +13,13 @@ import com.badlogic.gdx.utils.ObjectMap;
 /** All card drawing lives here: frame textures, tints, flip/tilt, text and augment icons. */
 public final class CardView {
 
+    private static final int ENCHANTED_FRAME_COUNT = 12;
+    private static final float ENCHANTED_FPS = 12f;
     private static Texture frameStandard;
-    private static Texture frameAugmented;
+    private static Texture enchantedSheet;
+    private static TextureRegion[] enchantedFrames;
     private static Texture backTexture;                 // optional: card_back.png
     private static TextureRegion standardRegion;
-    private static TextureRegion augmentedRegion;
     private static TextureRegion backRegion;
     // Optional per-augment artwork. Missing files are safely skipped so builds still run.
     private static final ObjectMap<AugmentType, Texture> augmentIcons = new ObjectMap<>();
@@ -47,10 +49,8 @@ public final class CardView {
             standardRegion = new TextureRegion(frameStandard);
         }
 
-        if (frameAugmented == null) {
-            frameAugmented = new Texture(Gdx.files.internal("card_frame_augmented.png"));
-            frameAugmented.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-            augmentedRegion = new TextureRegion(frameAugmented);
+        if (enchantedSheet == null) {
+            loadEnchantedFrames();
         }
 
         // Optional card back used by the flip animation.
@@ -90,6 +90,40 @@ public final class CardView {
         }
     }
 
+
+    private static void loadEnchantedFrames() {
+        String file = "card_frame_enchanted_sheet.png";
+        if (!Gdx.files.internal(file).exists()) {
+            Gdx.app.error("CardView", "Missing " + file + "; enchanted cards will use their normal faces.");
+            return;
+        }
+
+        enchantedSheet = new Texture(Gdx.files.internal(file));
+        enchantedSheet.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        int sheetWidth = enchantedSheet.getWidth();
+        int sheetHeight = enchantedSheet.getHeight();
+        enchantedFrames = new TextureRegion[ENCHANTED_FRAME_COUNT];
+
+        // The source sheet is a horizontal strip of 12 equally sized frames.
+        for (int i = 0; i < ENCHANTED_FRAME_COUNT; i++) {
+            int startX = Math.round(i * sheetWidth / (float) ENCHANTED_FRAME_COUNT);
+            int endX = Math.round((i + 1) * sheetWidth / (float) ENCHANTED_FRAME_COUNT);
+            enchantedFrames[i] = new TextureRegion(
+                enchantedSheet, startX, 0, endX - startX, sheetHeight
+            );
+        }
+    }
+
+    private static TextureRegion getEnchantedFrame(Card card) {
+        if (enchantedFrames == null || enchantedFrames.length == 0) {
+            return null;
+        }
+
+        int frame = MathUtils.floor(card.getPulseTime() * ENCHANTED_FPS);
+        return enchantedFrames[Math.floorMod(frame, ENCHANTED_FRAME_COUNT)];
+    }
+
     public static void disposeTextures() {
 
         if (frameStandard != null) {
@@ -98,10 +132,10 @@ public final class CardView {
             standardRegion = null;
         }
 
-        if (frameAugmented != null) {
-            frameAugmented.dispose();
-            frameAugmented = null;
-            augmentedRegion = null;
+        if (enchantedSheet != null) {
+            enchantedSheet.dispose();
+            enchantedSheet = null;
+            enchantedFrames = null;
         }
 
         if (backTexture != null) {
@@ -141,8 +175,8 @@ public final class CardView {
             float dark = backRegion != null ? 1f : 0.45f;
             batch.setColor(shade * dark, shade * dark, shade * dark, 1f);
         } else {
-            // Use the new illustrated face whenever one exists; retain frame fallback
-            // for special movement types that do not yet have dedicated artwork.
+            // Keep the illustrated card face as the base artwork. The animated
+            // enchantment sheet is drawn as a transparent frame overlay below.
             region = face != null ? face : standardRegion;
             applyTint(card, batch);
             Color c = batch.getColor();
@@ -151,7 +185,9 @@ public final class CardView {
 
         // Enchanted cards radiate a living aura behind the frame.
         // The pulse is subtle at rest and brightens while the card is selected.
-        if (!card.isShowingBack() && card.hasAnyAugment() && !card.isUsed() && augmentedRegion != null) {
+        TextureRegion enchantedFrame = !card.isShowingBack() && card.hasAnyAugment() && !card.isUsed()
+            ? getEnchantedFrame(card) : null;
+        if (enchantedFrame != null) {
             float pulse = 0.5f + 0.5f * MathUtils.sin(card.getPulseTime() * 3.2f);
             float glowScale = 1.035f + pulse * 0.025f;
             float glowW = w * glowScale;
@@ -167,13 +203,20 @@ public final class CardView {
                 batch.setColor(0.62f, 0.28f, 1f, glowAlpha);
             }
 
-            batch.draw(augmentedRegion,
+            batch.draw(enchantedFrame,
                 cx - glowW / 2f, cy - glowH / 2f,
                 glowW / 2f, glowH / 2f,
                 glowW, glowH, sx, 1f, card.getRotation());
         }
 
         batch.draw(region, cx - w / 2f, cy - h / 2f, w / 2f, h / 2f, w, h, sx, 1f, card.getRotation());
+
+        // Draw the animated enchantment border over the illustrated face.
+        if (enchantedFrame != null) {
+            batch.setColor(Color.WHITE);
+            batch.draw(enchantedFrame, cx - w / 2f, cy - h / 2f,
+                w / 2f, h / 2f, w, h, sx, 1f, card.getRotation());
+        }
         batch.setColor(Color.WHITE);
     }
 
