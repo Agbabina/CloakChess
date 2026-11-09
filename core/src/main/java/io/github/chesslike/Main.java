@@ -1628,7 +1628,8 @@ public class Main extends Game {
 
     private void positionCards() {
         if (hand == null || hand.size == 0) return;
-        HandLayout.apply(hand, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), boardRight());
+        HandLayout.apply(hand, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(),
+            boardRight(), visibleHandStart(), visibleHandEnd() - visibleHandStart());
     }
     private float boardRight() {
         return Player.getBoardX() + Player.BOARD_SIZE * Player.getTileSize();
@@ -7773,13 +7774,7 @@ public class Main extends Game {
             batch.draw(arrowTexture, x - ARROW_DRAW_WIDTH, y - ARROW_DRAW_HEIGHT, ARROW_DRAW_WIDTH, ARROW_DRAW_HEIGHT, ARROW_DRAW_WIDTH, ARROW_DRAW_HEIGHT, 2f, 2f, angle, 0, 0, arrowTexture.getWidth(), arrowTexture.getHeight(), false, false);
             batch.setColor(Color.WHITE);
         }
-        for (int i = handPageIndex * VISIBLE_HAND_CARDS;
-             i < Math.min(hand.size, (handPageIndex + 1) * VISIBLE_HAND_CARDS); i++) {
-            hand.get(i).drawText(batch, font);
-        }
-        for (int i = 0; i < flyingCards.size; i++) {
-            flyingCards.get(i).drawText(batch, font);
-        }
+        // Card-face artwork already contains its visual identity; do not overlay text.
         if (hand.size > VISIBLE_HAND_CARDS) {
             font.getData().setScale(.55f);
             font.setColor(.88f, .92f, 1f, 1f);
