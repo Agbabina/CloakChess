@@ -21,6 +21,8 @@ public final class CardView {
     private static TextureRegion backRegion;
     // Optional per-augment artwork. Missing files are safely skipped so builds still run.
     private static final ObjectMap<AugmentType, Texture> augmentIcons = new ObjectMap<>();
+    // Full illustrated 256x328 card faces. Missing variants fall back to the frame.
+    private static final ObjectMap<Card.MovementType, TextureRegion> cardFaces = new ObjectMap<>();
 
     private static final Color USES_COLOR = new Color(1f, 0.80f, 0.30f, 1f);
     private static final Color DMG_COLOR = new Color(1f, 0.42f, 0.30f, 1f);
@@ -56,6 +58,20 @@ public final class CardView {
             backTexture = new Texture(Gdx.files.internal("card_back.png"));
             backTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
             backRegion = new TextureRegion(backTexture);
+        }
+
+        // Full card-face artwork lives at assets/card_face_<movement>.png.
+        Card.MovementType[] faceTypes = {Card.MovementType.KNIGHT, Card.MovementType.BISHOP,
+            Card.MovementType.ROOK, Card.MovementType.QUEEN, Card.MovementType.PAWN,
+            Card.MovementType.DASH, Card.MovementType.CLAUDE};
+        for (Card.MovementType type : faceTypes) {
+            if (cardFaces.containsKey(type)) continue;
+            String file = "card_face_" + type.name().toLowerCase(java.util.Locale.ROOT) + ".png";
+            if (Gdx.files.internal(file).exists()) {
+                Texture face = new Texture(Gdx.files.internal(file));
+                face.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+                cardFaces.put(type, new TextureRegion(face));
+            }
         }
 
         // Icons live beside the card frames: icon_augment_soul_eater.png, etc.
@@ -96,6 +112,8 @@ public final class CardView {
 
         for (Texture icon : augmentIcons.values()) icon.dispose();
         augmentIcons.clear();
+        for (TextureRegion face : cardFaces.values()) face.getTexture().dispose();
+        cardFaces.clear();
     }
 
     // =========================================================
@@ -104,7 +122,7 @@ public final class CardView {
 
     public static void drawFrame(Card card, SpriteBatch batch) {
 
-        if (batch == null || standardRegion == null || augmentedRegion == null) {
+        if (batch == null || standardRegion == null) {
             return;
         }
 
@@ -116,13 +134,16 @@ public final class CardView {
         float sx = card.getFlipScaleX();
         float shade = 1f - 0.45f * (1f - sx);
 
+        TextureRegion face = cardFaces.get(card.getMovementType());
         TextureRegion region;
         if (card.isShowingBack()) {
             region = backRegion != null ? backRegion : standardRegion;
             float dark = backRegion != null ? 1f : 0.45f;
             batch.setColor(shade * dark, shade * dark, shade * dark, 1f);
         } else {
-            region = card.hasAnyAugment() ? augmentedRegion : standardRegion;
+            // Use the new illustrated face whenever one exists; retain frame fallback
+            // for special movement types that do not yet have dedicated artwork.
+            region = face != null ? face : standardRegion;
             applyTint(card, batch);
             Color c = batch.getColor();
             batch.setColor(c.r * shade, c.g * shade, c.b * shade, c.a);
@@ -130,7 +151,7 @@ public final class CardView {
 
         // Enchanted cards radiate a living aura behind the frame.
         // The pulse is subtle at rest and brightens while the card is selected.
-        if (!card.isShowingBack() && card.hasAnyAugment() && !card.isUsed()) {
+        if (!card.isShowingBack() && card.hasAnyAugment() && !card.isUsed() && augmentedRegion != null) {
             float pulse = 0.5f + 0.5f * MathUtils.sin(card.getPulseTime() * 3.2f);
             float glowScale = 1.035f + pulse * 0.025f;
             float glowW = w * glowScale;
