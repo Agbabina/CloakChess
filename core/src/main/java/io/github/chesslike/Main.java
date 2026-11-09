@@ -3303,22 +3303,10 @@ public class Main extends Game {
         boolean compact = w < 600f;
         Rectangle first = uiButtons[0];
         Rectangle last = uiButtons[uiButtons.length - 1];
-        float panelX = portrait ? 6f : 10f;
-        float panelRight = portrait ? w - 6f : uiButtons[5].x + uiButtons[5].width + 10f;
-        float panelW = panelRight - panelX;
-        float panelTop = first.y + first.height + (portrait ? 27f : 30f);
-        float panelBottom = last.y - (portrait ? 9f : 10f);
-        float panelH = panelTop - panelBottom;
+        float panelX = (w - Math.min(portrait ? w - 20f : 330f, w - 20f)) * .5f;
+        float panelTop = first.y + first.height + 8f;
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(0f, 0f, 0f, .34f);
-        shapeRenderer.rect(panelX + 3f, panelBottom - 3f, panelW, panelH);
-        shapeRenderer.setColor(.035f, .047f, .072f, .94f);
-        shapeRenderer.rect(panelX, panelBottom, panelW, panelH);
-        shapeRenderer.setColor(.16f, .20f, .27f, .9f);
-        shapeRenderer.rect(panelX, panelBottom + panelH - 2f, panelW, 2f);
-        shapeRenderer.setColor(.83f, .65f, .29f, .95f);
-        shapeRenderer.rect(panelX + 8f, panelTop - 23f, 3f, 13f);
 
         for (int i = 0; i < uiButtons.length; i++) {
             Rectangle r = uiButtons[i];
@@ -3348,10 +3336,10 @@ public class Main extends Game {
         batch.begin();
         font.getData().setScale(compact ? .36f : .43f);
         font.setColor(new Color(.96f, .84f, .55f, 1f));
-        font.draw(batch, "ARSENAL", panelX + 16f, panelTop - 8f);
+        font.draw(batch, "SPELLS & ACTIONS", panelX + 16f, panelTop - 8f);
         font.getData().setScale(compact ? .24f : .29f);
         font.setColor(new Color(.58f, .64f, .74f, 1f));
-        String subtitle = portrait ? "ARROWS  /  SPELLS  /  ACTIONS" : "QUICK INVENTORY  •  TACTICAL ACTIONS";
+        String subtitle = portrait ? "ARROWS / SPELLS / ITEMS" : "RUN POWERS / SPELLS / ITEMS";
         font.draw(batch, subtitle, panelX + (compact ? 82f : 92f), panelTop - 8f);
 
         for (int i = 0; i < uiButtons.length; i++) {
@@ -7438,7 +7426,7 @@ public class Main extends Game {
         font.getData().setScale(.38f); font.setColor(Color.WHITE);
         font.draw(batch, "SPELLS & ACTIONS", x + 16f, y + panelH - 66f);
         font.draw(batch, "RUN POWERS", x + 16f, y + 174f);
-        font.draw(batch, "KING'S OATHS  " + kingEnchantments.getActiveEnchantments().size + " ACTIVE", x + 16f, y + 150f);
+        font.draw(batch, "KING'S OATHS  " + kingEnchantments.getActiveEnchantments().size() + " ACTIVE", x + 16f, y + 150f);
         font.draw(batch, "TACTICAL MARK  " + (tacticalMarkAvailable ? "READY" : "SPENT"), x + 16f, y + 126f);
         font.draw(batch, "ROYAL GUARD  " + (royalGuardAvailable ? "READY" : "SPENT"), x + 16f, y + 104f);
         font.draw(batch, "CORRUPTION  " + corruption.getLevel() + "%  —  " + corruption.getStatusText(), x + 16f, y + 82f);
@@ -7606,7 +7594,7 @@ public class Main extends Game {
         float x = (screenW - w) * .5f;
         float panelW = Math.min(screenW - 20f, screenH > screenW ? screenW - 12f : 350f);
         float panelY = (screenH - Math.min(screenH - 100f, screenH > screenW ? 470f : 500f)) * .5f;
-        float y = panelY + 210f;
+        float y = panelY + 360f;
         float barH = 8f;
         float p = MathUtils.clamp(corruption.getProgress(), 0f, 1f);
 
