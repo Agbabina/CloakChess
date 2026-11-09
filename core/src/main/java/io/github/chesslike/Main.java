@@ -7735,11 +7735,7 @@ public class Main extends Game {
         if (Gdx.graphics.getHeight() > Gdx.graphics.getWidth()) {
             // Portrait phone: the hand is a bottom dock, not a narrow side panel.
             gameBackdrop.drawHandPanel(batch, 6f, 5f, Gdx.graphics.getWidth() - 12f, 116f);
-        } else {
-            // Laptop / landscape: keep the card rail beside the board.
-            gameBackdrop.drawHandPanel(batch, Player.getBoardX() + boardPx + 12f, Player.getBoardY(),
-                Gdx.graphics.getWidth() - (Player.getBoardX() + boardPx) - 24f, boardPx);
-        }
+        } // Landscape: cards render directly over the arena; remove the redundant side panel.
         gameBackdrop.drawHudBar(batch, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
         renderPoisonTiles();
