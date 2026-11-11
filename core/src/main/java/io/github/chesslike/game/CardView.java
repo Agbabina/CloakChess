@@ -74,9 +74,10 @@ public final class CardView {
             if (!cardFaces.containsKey(type)) {
                 String key = type.name().toLowerCase(java.util.Locale.ROOT);
                 // New illustrated special cards use card_<type>.png; legacy pieces keep card_face_<type>.png.
-                String[] candidates = {"card_" + key + ".png", "card_face_" + key + ".png"};
+                String[] candidates = {"card_" + key + ".png", "card_face_" + key + ".png",
+                    (type == Card.MovementType.HUNTER ? "hunter.png" : "")};
                 for (String file : candidates) {
-                    if (Gdx.files.internal(file).exists()) {
+                    if (!file.isEmpty() && Gdx.files.internal(file).exists()) {
                         Texture face = new Texture(Gdx.files.internal(file));
                         face.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
                         cardFaces.put(type, new TextureRegion(face));
