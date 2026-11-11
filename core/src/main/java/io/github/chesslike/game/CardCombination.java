@@ -58,9 +58,14 @@ public class CardCombination {
         new Recipe(Card.MovementType.CLAUDE,     Card.MovementType.KNIGHT,     "Leaper",        Card.MovementType.LEAPER,        2),
     };
 
-    /** Returns a new Card if the two cards combine, otherwise null. */
-    /** Card fusion is intentionally disabled while the new card faces are being balanced. */
+    /** Returns a fused card when a registered recipe matches, otherwise null. */
     public static Card combine(Card first, Card second) {
+        if (first == null || second == null || first == second) return null;
+        for (Recipe recipe : RECIPES) {
+            if (recipe.matches(first.getMovementType(), second.getMovementType())) {
+                return new Card(recipe.resultName, recipe.resultType, recipe.uses);
+            }
+        }
         return null;
     }
 }
