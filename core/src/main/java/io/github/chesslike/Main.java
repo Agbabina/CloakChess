@@ -203,7 +203,7 @@ public class Main extends Game {
         {},
         {
             "Hold up to 5 cards. Each has limited uses.",
-            "Tap a card to select it. Card combinations are currently disabled.",
+            "Tap a card to select it. Drag one card onto another to fuse matching pairs.",
             "Dash shoves enemies in its path.",
             "SHIFTER changes its movement type after every turn. Check its 'Now:' line.",
             "SACRIFICE (S): lose 1 HP, gain gold, mana and DEF, hit every enemy.",
@@ -3383,16 +3383,90 @@ public class Main extends Game {
         tooltipEnemy = null;
     }
 
-    // Returns true when it consumed the touch
-    // Card combinations are temporarily disabled. Cards are selected by tapping;
-    // dragging a card onto another must never consume, merge, or replace either card.
+    // Drag one card onto another to fuse them. A short tap still selects a card.
     private boolean handleCardDrag() {
-        if (draggedCard != null) {
-            draggedCard.stopDrag();
-            draggedCard = null;
-            positionCards();
+        float touchX = Gdx.input.getX();
+        float touchY = Gdx.graphics.getHeight() - Gdx.input.getY();
+
+        if (!Gdx.input.isTouched()) {
+            if (draggedCard != null) {
+                Card source = draggedCard;
+                source.stopDrag();
+                draggedCard = null;
+
+                Card target = null;
+                for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
+                    Card candidate = hand.get(i);
+                    if (candidate != source && !candidate.isUsed()
+                        && candidate.isClicked(touchX, touchY)) {
+                        target = candidate;
+                        break;
+                    }
+                }
+
+                if (target != null) {
+                    Card fused = CardCombination.combine(source, target);
+                    if (fused != null) {
+                        int sourceIndex = hand.indexOf(source, true);
+                        int targetIndex = hand.indexOf(target, true);
+                        int insertAt = Math.min(sourceIndex, targetIndex);
+                        hand.removeValue(source, true);
+                        hand.removeValue(target, true);
+                        hand.insert(Math.min(insertAt, hand.size), fused);
+                        if (activeCard == source || activeCard == target) activeCard = null;
+                        if (activeCard == null) player.setSelected(false);
+                        handPageIndex = Math.min(handPageIndex,
+                            Math.max(0, (hand.size - 1) / VISIBLE_HAND_CARDS));
+                        if (combineSound != null) combineSound.play();
+                        message(source.getName() + " + " + target.getName()
+                            + " = " + fused.getName() + "!", 2f);
+                        autosave();
+                    } else {
+                        message("Those cards have no fusion recipe.", 1.4f);
+                    }
+                } else {
+                    // A drag released away from another card returns to its hand slot.
+                    message("Drop onto another card to combine.", 1.2f);
+                }
+                dragCandidate = null;
+                positionCards();
+                return true;
+            }
+            dragCandidate = null;
+            return false;
         }
-        dragCandidate = null;
+
+        if (draggedCard != null) {
+            draggedCard.dragTo(touchX, touchY);
+            return true;
+        }
+
+        if (dragCandidate != null) {
+            float dx = touchX - dragDownX;
+            float dy = touchY - dragDownY;
+            if (dx * dx + dy * dy >= 18f * 18f) {
+                draggedCard = dragCandidate;
+                if (activeCard != null) activeCard.setSelected(false);
+                activeCard = null;
+                player.setSelected(false);
+                draggedCard.startDrag(dragDownX, dragDownY);
+                draggedCard.dragTo(touchX, touchY);
+                return true;
+            }
+            return false;
+        }
+
+        if (Gdx.input.justTouched()) {
+            for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
+                Card candidate = hand.get(i);
+                if (!candidate.isUsed() && candidate.isClicked(touchX, touchY)) {
+                    dragCandidate = candidate;
+                    dragDownX = touchX;
+                    dragDownY = touchY;
+                    break;
+                }
+            }
+        }
         return false;
     }
 
