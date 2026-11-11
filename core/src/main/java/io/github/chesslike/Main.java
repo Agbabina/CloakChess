@@ -27,12 +27,22 @@ import io.github.chesslike.game.*;
 
 import java.util.Random;
 
+import static io.github.chesslike.game.EnemyCurse.HUNTER;
+
 public class Main extends Game {
     private SpriteBatch batch;
     private ShapeRenderer shapeRenderer;
     private BitmapFont font;
     private Board board;
     private Player player;
+    private RoguelikeBackdrop roguelikeBackdrop;
+    private static final Enemy.DeathAnimationType[] DEATH_ANIMATION_ROTATION = {
+        Enemy.DeathAnimationType.FADE, Enemy.DeathAnimationType.SHATTER,
+        Enemy.DeathAnimationType.BURN, Enemy.DeathAnimationType.SOUL,
+        Enemy.DeathAnimationType.IMPLODE
+    };
+    private int deathAnimationCursor = 0;
+    private GameBackdrop gameBackdrop;
 
     // ---------- Capture slash FX ----------
     private static class Slash {
@@ -60,7 +70,7 @@ public class Main extends Game {
 
     private void renderSlashes() {
         if (slashes.size == 0) return;
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (int i = 0; i < slashes.size; i++) {
             Slash s = slashes.get(i);
@@ -96,6 +106,7 @@ public class Main extends Game {
     // ---------- Defense ----------
     private static final int MAX_DEFENSE = 2;
     private int defense = 0;
+    private boolean resolvingFork = false;
     private int frenzyTurns = 0;
     private int flawlessStreak = 0;
     private int shopRerolls = 0;
@@ -166,8 +177,8 @@ public class Main extends Game {
     private int activeEnemyStepsRemaining = 0;
     private boolean enemyTurnActive = false;
     private boolean enemyTurnMoveInFlight = false;
+    private float enemyIntentDelay = 0f;
     private static final Color COL_BURN = new Color(1f, .35f, .12f, 1f);
-    // ---------- Tutorial ----------
     // ---------- Tutorial ----------
     private static final String[] TUT_TITLES = {"THE BASICS", "MOVES - TAP A CARD", "CARDS", "AUGMENTS", "MANA & SPELLS", "DEFENSE & HP", "CURSES & STATUS 1/3", "CURSES & STATUS 2/3", "CURSES & STATUS 3/3", "OMENS", "RUN SYSTEMS", "BLITZ MODE", "BLITZ SCORING", "BLITZ RELICS", "BLITZ TIME GAMBLE"};
     private static final int TUT_MOVES_PAGE = 1;
@@ -179,13 +190,20 @@ public class Main extends Game {
         {
             "Capture every enemy to clear the room.",
             "Pick a card, tap your piece, tap a tile.",
-            "Enemies move after each card.",
+            "Gold intent arrows reveal each enemy's next tile.",
+            "Enemy movement is deterministic: plan a trap, then execute.",
+            "Mad Rooks cycle straight / straight / diagonal; Jesters follow a fixed pattern.",
+            "TACTICAL MARK: bait the nearest enemy onto a tile once per room.",
+            "ROYAL GUARD: brace once per room; the first adjacent enemy is stunned.",
+            "CHECK: threaten an enemy with your card movement to stun it.",
+            "KNIGHT FORK: a Knight landing that attacks 2 enemies stuns both.",
+            "SKEWER: Rook/Bishop/Queen lines pierce a second enemy behind the first.",
             "Tap an enemy to see its info."
         },
         {},
         {
             "Hold up to 5 cards. Each has limited uses.",
-            "Drag one card onto another to combine them.",
+            "Tap a card to select it. Drag one card onto another to fuse matching pairs.",
             "Dash shoves enemies in its path.",
             "SHIFTER changes its movement type after every turn. Check its 'Now:' line.",
             "SACRIFICE (S): lose 1 HP, gain gold, mana and DEF, hit every enemy.",
@@ -451,6 +469,9 @@ public class Main extends Game {
     private Array<Card> hand;
     private Card activeCard;
     private int kingCardCycleIndex = -1;
+    private int handPageIndex = 0;
+    private final Rectangle handCycleButton = new Rectangle();
+    private static final int VISIBLE_HAND_CARDS = 3;
     private static final int MAX_HAND_SIZE = 5;
     private final Random random = new Random();
     private final Array<Debris> debris = new Array<>();
@@ -491,6 +512,13 @@ public class Main extends Game {
     private final Rectangle returnMenuButton = new Rectangle();
     private final Array<Spark> sparks = new Array<>();
     private Preferences savePrefs;
+    private final Array<Card> flyingCards = new Array<>();
+    // Played or sacrificed card pops, slants and flies onto the player's tile
+    private void sendCardAway(Card c) {
+        c.popAndFly(tileCenterX(player.getX()) - Card.WIDTH / 2f, tileCenterY(player.getY()) - Card.HEIGHT / 2f);
+        flyingCards.add(c);
+    }
+
 
     private int playerMaxHp = 3;
     private int playerHp = 3;
@@ -538,6 +566,20 @@ public class Main extends Game {
     private int gold = 0;
     private RewardScreen rewardScreen;
     private GameOverScreen gameOverScreen;
+    private final KingEnchantmentSystem kingEnchantments = new KingEnchantmentSystem();
+    private KingEnchantmentScreen kingEnchantmentScreen;
+    private final Rectangle enchantmentsButton = new Rectangle();
+    private final Rectangle tacticalMarkButton = new Rectangle();
+    private final Rectangle royalGuardButton = new Rectangle();
+    private final Rectangle inventoryTabButton = new Rectangle();
+    private boolean inventoryOpen = false;
+    private boolean royalGuardAvailable = true;
+    private boolean royalGuardArmed = false;
+    private boolean placingTacticalMark = false;
+    private boolean tacticalMarkAvailable = true;
+    private boolean tacticalMarkArmed = false;
+    private int tacticalMarkX = -1, tacticalMarkY = -1;
+    private Enemy tacticalMarkTarget = null;
     private int difficulty = 1;
     private int enemyTurnCounter = 0;
     private final Corruption corruption = new Corruption();
@@ -600,6 +642,10 @@ public class Main extends Game {
     private boolean moveAnimActive = false;
     private boolean moveAnimJump = false;
     private boolean playerTransformApplied = false;
+    private boolean retreatAnimActive = false;
+    private float retreatAnimT = 0f;
+    private int retreatFromX, retreatFromY;
+    private static final float RETREAT_ANIM_DURATION = .18f;
     private float moveAnimT = 0f, moveAnimDur = SLIDE_DURATION;
     private int moveFromX, moveFromY;
     private Card moveAnimCard;
@@ -724,8 +770,11 @@ public class Main extends Game {
         arrowTexture = new Texture(Gdx.files.internal("pixelarrow.png"));
         arrowTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         Card.loadTextures();
+        gameBackdrop = new GameBackdrop();
+        gameBackdrop.load();
         RewardScreen.loadTextures();
         shapeRenderer = new ShapeRenderer();
+        roguelikeBackdrop = new RoguelikeBackdrop();
 
         // Readable Pixel Operator UI font.
         // Prefer the Pixel Operator font when it is present, but keep Font.ttf
@@ -758,6 +807,7 @@ public class Main extends Game {
         enemyGenerator = new EnemyGenerator();
         hand = new Array<>();
         rewardScreen = new RewardScreen(batch, shapeRenderer, font);
+        kingEnchantmentScreen = new KingEnchantmentScreen();
         gameOverScreen = new GameOverScreen(batch, shapeRenderer, font);
         shopScreen = new ShopScreen(batch, shapeRenderer, font);
         blitzRelicShop = new BlitzRelicShopScreen(batch, shapeRenderer, font);
@@ -866,6 +916,41 @@ public class Main extends Game {
         }
     }
 
+    // Segmented bars make each HP/mana unit readable at a glance on small screens.
+    private void drawSegmentedHudBar(
+        float x, float y, float w, float h,
+        float shown, float actual, int max,
+        float r, float g, float b
+    ) {
+        max = Math.max(1, max);
+        float gap = Math.min(3f, w / max * .12f);
+        float segmentW = (w - gap * (max - 1)) / max;
+        for (int i = 0; i < max; i++) {
+            float sx = x + i * (segmentW + gap);
+            float shownFill = MathUtils.clamp(shown - i, 0f, 1f);
+            float actualFill = MathUtils.clamp(actual - i, 0f, 1f);
+
+            shapeRenderer.setColor(0.025f, 0.035f, 0.055f, 1f);
+            shapeRenderer.rect(sx - 1f, y - 1f, segmentW + 2f, h + 2f);
+            shapeRenderer.setColor(0.10f, 0.13f, 0.19f, 1f);
+            shapeRenderer.rect(sx, y, segmentW, h);
+
+            if (shownFill > 0f) {
+                shapeRenderer.setColor(r, g, b, 1f);
+                shapeRenderer.rect(sx, y, segmentW * shownFill, h);
+                shapeRenderer.setColor(1f, 1f, 1f, .17f);
+                shapeRenderer.rect(sx, y + h * .68f, segmentW * shownFill, h * .16f);
+            }
+
+            // A subtle pale tail makes recent healing/damage animation legible.
+            if (actualFill > shownFill) {
+                shapeRenderer.setColor(1f, 1f, 1f, .22f);
+                shapeRenderer.rect(sx + segmentW * shownFill, y,
+                    segmentW * (actualFill - shownFill), h);
+            }
+        }
+    }
+
     private void renderHud() {
         float delta = Gdx.graphics.getDeltaTime();
         float screenH = Gdx.graphics.getHeight();
@@ -970,30 +1055,16 @@ public class Main extends Game {
                 ? .78f + .22f * MathUtils.sin(uiTime * 7f)
                 : 1f;
 
-        drawPillBar(
-            x0 + 44f,
-            y0 + 53f,
-            158f,
-            17f,
-            hudHp,
-            playerHp,
-            maxHp,
-            .90f * lowPulse,
-            .20f * lowPulse,
-            .23f * lowPulse
+        drawSegmentedHudBar(
+            x0 + 44f, y0 + 53f, 158f, 17f,
+            hudHp, playerHp, maxHp,
+            .90f * lowPulse, .20f * lowPulse, .23f * lowPulse
         );
 
-        drawPillBar(
-            x0 + 44f,
-            y0 + 29f,
-            158f,
-            15f,
-            hudMana,
-            mana,
-            maxMana,
-            .22f,
-            .50f,
-            .95f
+        drawSegmentedHudBar(
+            x0 + 44f, y0 + 29f, 158f, 15f,
+            hudMana, mana, maxMana,
+            .22f, .50f, .95f
         );
 
         // ---------------------------------------------------------
@@ -1008,14 +1079,17 @@ public class Main extends Game {
             shapeRenderer.circle(px, py, 8f, 20);
 
             if (i < defense) {
-                shapeRenderer.setColor(.35f, .65f, 1f, 1f);
-                shapeRenderer.circle(px, py, 6.2f, 20);
-
-                shapeRenderer.setColor(1f, 1f, 1f, .20f);
-                shapeRenderer.circle(px - 1.5f, py + 1.5f, 2.2f, 12);
+                shapeRenderer.setColor(.18f, .34f, .58f, 1f);
+                shapeRenderer.circle(px, py, 8f, 6);
+                shapeRenderer.setColor(.40f, .72f, 1f, 1f);
+                shapeRenderer.circle(px, py, 6.1f, 6);
+                shapeRenderer.setColor(.88f, .96f, 1f, .9f);
+                shapeRenderer.circle(px - 1.5f, py + 1.7f, 2f, 10);
             } else {
-                shapeRenderer.setColor(.12f, .15f, .22f, 1f);
-                shapeRenderer.circle(px, py, 6.2f, 20);
+                shapeRenderer.setColor(.10f, .13f, .20f, 1f);
+                shapeRenderer.circle(px, py, 7.5f, 6);
+                shapeRenderer.setColor(.18f, .22f, .30f, 1f);
+                shapeRenderer.circle(px, py, 5.6f, 6);
             }
         }
 
@@ -1087,7 +1161,9 @@ public class Main extends Game {
         float coinW =
             7f * (.3f + .7f * Math.abs(MathUtils.cos(uiTime * 2.5f)));
 
-        shapeRenderer.setColor(.35f, .24f, .04f, 1f);
+        shapeRenderer.setColor(.24f, .15f, .025f, 1f);
+        shapeRenderer.circle(x0 + 275f, y0 + 52f, 11f + goldPunch * 2f, 28);
+        shapeRenderer.setColor(.68f, .43f, .08f, 1f);
         shapeRenderer.ellipse(
             x0 + 275f - coinW - 1f,
             y0 + 52f - 7f,
@@ -1095,13 +1171,21 @@ public class Main extends Game {
             16f
         );
 
-        shapeRenderer.setColor(1f, .82f, .25f, 1f);
+        shapeRenderer.setColor(1f, .86f, .32f, 1f);
         shapeRenderer.ellipse(
             x0 + 275f - coinW,
             y0 + 52f - 6f,
             coinW * 2f,
             13f
         );
+
+        // Floor/room badge backing, drawn before the text batch starts.
+        shapeRenderer.setColor(.035f, .045f, .07f, .95f);
+        shapeRenderer.rect(x0 + 232f, y0 + 7f, 110f, 24f);
+        shapeRenderer.setColor(FloorProgression.isBossRoom(difficulty) ? .85f : .35f,
+            FloorProgression.isBossRoom(difficulty) ? .18f : .48f,
+            FloorProgression.isBossRoom(difficulty) ? .22f : .62f, .95f);
+        shapeRenderer.rect(x0 + 232f, y0 + 7f, 3f, 24f);
 
         shapeRenderer.end();
 
@@ -1228,12 +1312,12 @@ public class Main extends Game {
 
         hudText(
             "FLOOR / ROOM",
-            x0 + 238f,
-            y0 + 18f,
-            .32f,
+            x0 + 240f,
+            y0 + 24f,
+            .30f,
             .68f,
-            .70f,
-            .78f
+            .76f,
+            .86f
         );
 
         hudText(
@@ -1264,7 +1348,7 @@ public class Main extends Game {
 
     // MANA (relic-aware)
     private int getMaxMana() {
-        int m = BASE_MAX_MANA + upLevels[2];
+        int m = BASE_MAX_MANA + upLevels[2] + kingEnchantments.getMaxManaBonus();
         if (hasRelic(Relic.Blessing.ARCANE_WELL)) m += 2;
         if (hasCurse(Relic.Curse.DRAINED)) m -= 2;
         if (runPact[2]) m -= 2;
@@ -1344,6 +1428,9 @@ public class Main extends Game {
                 break;
             case SHIFTER:
                 card = new Card("Shifter", Card.MovementType.SHIFTER, 3);
+                break;
+            case HUNTER:
+                card = new Card("Hunter", Card.MovementType.HUNTER, 2);
                 break;
             default:
                 return createCard(Card.MovementType.KNIGHT);
@@ -1518,7 +1605,7 @@ public class Main extends Game {
             pool.add(c);
         }
         if (difficulty >= 3) {
-            EnemyCurse[] tier1 = {EnemyCurse.BRUTAL, EnemyCurse.CRIPPLING, EnemyCurse.CORROSIVE, EnemyCurse.HUNTER};
+            EnemyCurse[] tier1 = {EnemyCurse.BRUTAL, EnemyCurse.CRIPPLING, EnemyCurse.CORROSIVE, HUNTER};
             for (EnemyCurse c : tier1) {
                 pool.add(c);
                 pool.add(c);
@@ -1541,31 +1628,36 @@ public class Main extends Game {
 
     private void positionCards() {
         if (hand == null || hand.size == 0) return;
+        HandLayout.apply(hand, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(),
+            boardRight(), visibleHandStart(), visibleHandEnd() - visibleHandStart());
+    }
+    private float boardRight() {
+        return Player.getBoardX() + Player.BOARD_SIZE * Player.getTileSize();
+    }
 
-        float screenW = Gdx.graphics.getWidth();
-        float h = Gdx.graphics.getHeight();
-        float scale = currentCardScale();
-        float cw = 115f * scale;
-        float ch = 155f * scale;
+    private int visibleHandStart() {
+        return handPageIndex * VISIBLE_HAND_CARDS;
+    }
 
-        // Clean right-side stack: aligned cards with a controlled overlap, never a diagonal fan.
-        float stepY = ch * 0.66f;
-        float totalH = ch + Math.max(0, hand.size - 1) * stepY;
-        float startY = Math.max(8f, (h - totalH) / 2f);
-        float startX = screenW - cw - 12f;
+    private int visibleHandEnd() {
+        return Math.min(hand.size, visibleHandStart() + VISIBLE_HAND_CARDS);
+    }
 
-        // On short windows, tighten the overlap before allowing the stack to clip.
-        if (totalH > h - 16f && hand.size > 1) {
-            stepY = Math.max(36f, (h - 16f - ch) / (hand.size - 1));
-            totalH = ch + (hand.size - 1) * stepY;
-            startY = Math.max(8f, (h - totalH) / 2f);
-        }
+    private void cycleHandPage() {
+        int pageCount = Math.max(1, (hand.size + VISIBLE_HAND_CARDS - 1) / VISIBLE_HAND_CARDS);
+        if (pageCount <= 1) return;
 
-        for (int i = 0; i < hand.size; i++) {
-            Card c = hand.get(i);
-            c.setLayoutScale(scale);
-            c.setPosition(startX, startY + i * stepY);
-        }
+        if (activeCard != null) activeCard.setSelected(false);
+        activeCard = null;
+        player.setSelected(false);
+        dragCandidate = null;
+        if (draggedCard != null) draggedCard.stopDrag();
+        draggedCard = null;
+        tooltipEnemy = null;
+
+        handPageIndex = (handPageIndex + 1) % pageCount;
+        positionCards();
+        if (clickSound != null) clickSound.play();
     }
 
     private void curseAllEnemies() {
@@ -1578,7 +1670,11 @@ public class Main extends Game {
 
     private void updateCardHover() {
         float mx = Gdx.input.getX(), my = Gdx.graphics.getHeight() - Gdx.input.getY();
-        for (Card c : hand) c.setHovered(c.isClicked(mx, my));
+        for (Card c : hand) {
+            boolean over = c.isClicked(mx, my);
+            c.setHovered(over);
+            if (over) c.trackPointer(mx);
+        }
     }
 
     private void startEnemyDrop() {
@@ -1613,7 +1709,7 @@ public class Main extends Game {
         Shockwave w = new Shockwave();
         w.x = tileCenterX(x);
         w.y = tileCenterY(y);
-        w.maxRadius = radius * Player.TILE_SIZE;
+        w.maxRadius = radius * Player.getTileSize();
         shockwaves.add(w);
     }
 
@@ -1657,10 +1753,10 @@ public class Main extends Game {
         }
         Card.MovementType[] types = {Card.MovementType.KNIGHT, Card.MovementType.BISHOP, Card.MovementType.ROOK, Card.MovementType.QUEEN, Card.MovementType.PAWN, Card.MovementType.DASH, Card.MovementType.CLAUDE};
         Card c = createCard(types[random.nextInt(types.length)]);
-        hand.add(c);
+        hand.add(c);                                   // newCard in addRandomCardToHand()
+        c.dealFrom(Gdx.graphics.getWidth() + 120f, -200f);
+        c.dealFlipIn();
         positionCards();
-        playSfx(drawSound);
-        message("You received a " + c.getName() + "!", 2f);
     }
 
     // Enemy piece breaks into falling fragments
@@ -1837,7 +1933,7 @@ public class Main extends Game {
     // Poisoned tiles: bubbling toxic pools drawn right on top of the board
     private void renderPoisonTiles() {
         if (menuVisible || introActive || board == null) return;
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         int n = Player.BOARD_SIZE;
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (int x = 0; x < n; x++) {
@@ -1867,7 +1963,7 @@ public class Main extends Game {
     private void renderSpellFx() {
         boolean any = sparks.size > 0 || bolts.size > 0 || burnTurns.size > 0 || poisonTurns.size > 0 || confusedUntil.size > 0;
         if (!any) return;
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
         for (int i = 0; i < enemies.size; i++) {
@@ -2040,7 +2136,7 @@ public class Main extends Game {
     private void renderEnemyCurseBadges() {
         if (enemies == null || menuVisible || introActive) return;
 
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         float r = MathUtils.clamp(ts * .13f, 9f, 14f);
 
         batch.begin();
@@ -2274,9 +2370,21 @@ public class Main extends Game {
             poisonTurns.remove(enemy);
             burnTurns.remove(enemy);
             playSfx(enemyDeathSound);
-            spawnCrumble(enemy.getX(), enemy.getY());
-            spawnBurst(tileCenterX(enemy.getX()), tileCenterY(enemy.getY()), 28,
-                .95f, .55f, .22f, 78f);
+            Enemy.DeathAnimationType deathStyle =
+                DEATH_ANIMATION_ROTATION[deathAnimationCursor++ % DEATH_ANIMATION_ROTATION.length];
+            enemy.setDeathAnimationType(deathStyle);
+            float deathX = tileCenterX(enemy.getX()), deathY = tileCenterY(enemy.getY());
+            switch (deathStyle) {
+                case SHATTER:
+                    spawnCrumble(enemy.getX(), enemy.getY());
+                    spawnBurst(deathX, deathY, 28, .95f, .72f, .38f, 78f);
+                    break;
+                case BURN: spawnBurst(deathX, deathY, 22, 1f, .34f, .10f, 92f); break;
+                case SOUL: spawnBurst(deathX, deathY, 20, .38f, .82f, 1f, 68f); break;
+                case IMPLODE: spawnBurst(deathX, deathY, 18, .68f, .42f, 1f, 42f); break;
+                case FADE:
+                default: spawnBurst(deathX, deathY, 14, .72f, .78f, .92f, 32f); break;
+            }
             spawnShockwave(enemy.getX(), enemy.getY(),
                 enemy.getVariant() == EnemyVariant.BOSS ? 2.2f : 1.25f);
             startShake(enemy.getVariant() == EnemyVariant.BOSS ? .45f : .16f,
@@ -2295,6 +2403,62 @@ public class Main extends Game {
             if (pz != null && pz > 0) spreadPlague(enemy, Math.max(2, pz / 2 + 1));
             if (curse == EnemyCurse.VOLATILE) explodeVolatile(enemy);
             if (curse==EnemyCurse.MARTYR) empowerAllies(enemy);
+
+            // CENTRAL CONTROL: eliminate threats in the middle to earn gold.
+            if (enemy.getX() >= 2 && enemy.getX() <= 3
+                && enemy.getY() >= 2 && enemy.getY() <= 3) {
+                gold += 5;
+                spawnFloat("+5 CENTER", deathX, deathY + 48f, 1f, .82f, .2f);
+            }
+
+            // BACK-RANK DEFENCE: edge kills reinforce the player's defense.
+            if (enemy.getX() == 0 || enemy.getX() == Player.BOARD_SIZE - 1
+                || enemy.getY() == 0 || enemy.getY() == Player.BOARD_SIZE - 1) {
+                if (defense < MAX_DEFENSE) {
+                    defense++;
+                    spawnFloat("+1 DEF", deathX, deathY + 62f, .55f, .8f, 1f);
+                }
+            }
+
+            // KNIGHT TEMPO: a Knight-card capture restores one mana.
+            if (captureCard != null
+                && captureCard.getMovementType() == Card.MovementType.KNIGHT
+                && mana < getMaxMana()) {
+                mana++;
+                spawnFloat("+1 MANA", deathX, deathY + 76f, .4f, .7f, 1f);
+            }
+
+            // DESPERATE GAMBIT: a kill at critical health restores one HP.
+            if (playerHp == 1 && playerHp < playerMaxHp) {
+                playerHp++;
+                spawnFloat("+1 HP", deathX, deathY + 90f, .35f, 1f, .45f);
+            }
+
+            // FORK: one adjacent living enemy takes bonus damage. The guard
+            // prevents a fork kill from starting another fork recursively.
+            if (!resolvingFork) {
+                Enemy forkTarget = null;
+                for (int i = 0; i < enemies.size; i++) {
+                    Enemy candidate = enemies.get(i);
+                    if (candidate == enemy || !candidate.isAlive() || candidate.isFalling()) continue;
+                    int dx = Math.abs(candidate.getX() - enemy.getX());
+                    int dy = Math.abs(candidate.getY() - enemy.getY());
+                    if (dx <= 1 && dy <= 1 && (dx != 0 || dy != 0)) {
+                        forkTarget = candidate;
+                        break;
+                    }
+                }
+
+                if (forkTarget != null) {
+                    resolvingFork = true;
+                    try {
+                        damageEnemy(forkTarget, 1, .95f, .72f, .28f);
+                    } finally {
+                        resolvingFork = false;
+                    }
+                    spawnFloat("FORK!", deathX, deathY + 104f, 1f, .65f, .25f);
+                }
+            }
         }
         return died;
     }
@@ -2387,11 +2551,11 @@ public class Main extends Game {
     }
 
     private float tileCenterX(int x) {
-        return Player.getBoardX() + x * Player.TILE_SIZE + Player.TILE_SIZE / 2f;
+        return Player.getBoardX() + x * Player.getTileSize() + Player.getTileSize() / 2f;
     }
 
     private float tileCenterY(int y) {
-        return Player.getBoardY() + y * Player.TILE_SIZE + Player.TILE_SIZE / 2f;
+        return Player.getBoardY() + y * Player.getTileSize() + Player.getTileSize() / 2f;
     }
 
     private void updateArrowAnimation(float delta) {
@@ -2444,7 +2608,7 @@ public class Main extends Game {
     // Blue DEF icon on the player's tile (top-left corner) so defense is visible on the board
     private void renderDefenseIcon() {
         if (defense <= 0 || menuVisible || introActive || gameOverScreen.isVisible() || player == null) return;
-        float ts = Player.TILE_SIZE;
+        float ts = Player.getTileSize();
         float r = MathUtils.clamp(ts * .15f, 10f, 16f);
         batch.begin();
         drawRoundIcon(tileCenterX(player.getX()) - ts / 2f + r + 2f, tileCenterY(player.getY()) + ts / 2f - r - 2f, r, COL_DEFENSE, "DF", defense);
@@ -2669,6 +2833,7 @@ public class Main extends Game {
         player.setSelected(false);
 
         hand.removeValue(sacrificed, true);
+        sendCardAway(sacrificed);
         cardModifiers.remove(sacrificed);
         roomSacrificed = true;
         objectiveProgress = 1;
@@ -3061,20 +3226,25 @@ public class Main extends Game {
         batch.end();
     }
 
-    // ---------- Touch UI buttons ----------
+    // ---------- Quick inventory / action tray ----------
+    // Seven real action slots: arrow, three owned spells, cancel, sacrifice and reroll.
+    // The same slots adapt to portrait phones and landscape laptop screens.
     private void layoutUiButtons() {
-        float h = Gdx.graphics.getHeight();
-        float x = 20f, top = h - 120f - UI_BTN_H, y = top;
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        boolean portrait = h > w;
+        float gap = portrait ? 6f : 8f;
+        float panelW = Math.min(portrait ? w - 20f : 330f, w - 20f);
+        float panelX = (w - panelW) * .5f;
+        float buttonH = portrait ? 38f : 42f;
+        int columns = portrait ? 4 : 2;
+        float buttonW = (panelW - 24f - gap * (columns - 1)) / columns;
+        float top = portrait ? Math.min(h - 205f, 330f) : Math.min(h - 190f, 360f);
         for (int i = 0; i < uiButtons.length; i++) {
-            if (y < 10f) {
-                y = top;
-                x += UI_BTN_W + UI_BTN_GAP;
-            } // overflow into a second column on short screens
-            uiButtons[i].set(x, y, UI_BTN_W, UI_BTN_H);
-            y -= UI_BTN_H + UI_BTN_GAP;
+            int col = i % columns, row = i / columns;
+            uiButtons[i].set(panelX + 12f + col * (buttonW + gap),
+                top - buttonH - row * (buttonH + gap), buttonW, buttonH);
         }
     }
-
 
     private void cancelAction() {
         selectedSpell = null;
@@ -3086,6 +3256,7 @@ public class Main extends Game {
     }
 
     private boolean handleUiTap(float x, float y) {
+        if (!inventoryOpen) return false;
         layoutUiButtons();
         for (int i = 0; i < uiButtons.length; i++) {
             if (!uiButtons[i].contains(x, y)) continue;
@@ -3099,51 +3270,108 @@ public class Main extends Game {
         }
         return false;
     }
-    // --------------------------------------
+
+    private String uiSlotTitle(int index, boolean compact) {
+        if (index == 0) return compact ? "ARROW " + player.getArrowsRemaining()
+            : "ARROW  " + player.getArrowsRemaining() + (bounceArrows > 0 ? " +" + bounceArrows + "B" : "");
+        if (index <= 3) {
+            if (index - 1 >= ownedSpells.size) return "EMPTY";
+            Spell spell = ownedSpells.get(index - 1);
+            return spell.getLabel();
+        }
+        if (index == 4) return "CANCEL";
+        if (index == 5) return "SACRIFICE";
+        return roomRerolled ? "REROLL USED" : "REROLL";
+    }
+
+    private String uiSlotDetail(int index) {
+        if (index == 0) return "RANGE ATTACK";
+        if (index <= 3) {
+            if (index - 1 >= ownedSpells.size) return "EMPTY SLOT";
+            return "MANA " + manaCost(ownedSpells.get(index - 1));
+        }
+        if (index == 4) return "CLEAR SELECTION";
+        if (index == 5) return activeCard == null ? "SELECT A CARD" : "CARD TO RESOURCES";
+        return roomRerolled ? "ALREADY USED" : (activeCard == null ? "SELECT A CARD" : "SWAP THIS CARD");
+    }
 
     private void renderUiButtons() {
-        if (gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        if (!inventoryOpen || gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
         layoutUiButtons();
+        float w = Gdx.graphics.getWidth();
+        float h = Gdx.graphics.getHeight();
+        boolean portrait = h > w;
+        boolean compact = w < 600f;
+        Rectangle first = uiButtons[0];
+        Rectangle last = uiButtons[uiButtons.length - 1];
+        float panelX = (w - Math.min(portrait ? w - 20f : 330f, w - 20f)) * .5f;
+        float panelTop = first.y + first.height + 8f;
+
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+
         for (int i = 0; i < uiButtons.length; i++) {
-            boolean active = (i == 0 && shootMode) || (i >= 1 && i <= 3 && selectedSpell != null && i - 1 < ownedSpells.size && ownedSpells.get(i - 1) == selectedSpell) || (i == 5 && activeCard != null) || (i == 6 && activeCard != null && !roomRerolled);
-            if (active) shapeRenderer.setColor(.3f, .8f, 1f, .9f);
-            else shapeRenderer.setColor(.15f, .17f, .25f, .85f);
             Rectangle r = uiButtons[i];
+            boolean active = (i == 0 && shootMode)
+                || (i >= 1 && i <= 3 && selectedSpell != null
+                    && i - 1 < ownedSpells.size && ownedSpells.get(i - 1) == selectedSpell)
+                || (i == 5 && activeCard != null)
+                || (i == 6 && activeCard != null && !roomRerolled);
+            boolean disabled = (i >= 1 && i <= 3 && i - 1 >= ownedSpells.size)
+                || (i == 5 && activeCard == null)
+                || (i == 6 && (activeCard == null || roomRerolled));
+            shapeRenderer.setColor(0f, 0f, 0f, .28f);
+            shapeRenderer.rect(r.x + 2f, r.y - 2f, r.width, r.height);
+            if (active) shapeRenderer.setColor(.13f, .34f, .34f, 1f);
+            else if (disabled) shapeRenderer.setColor(.065f, .075f, .095f, .96f);
+            else shapeRenderer.setColor(.085f, .105f, .145f, .98f);
             shapeRenderer.rect(r.x, r.y, r.width, r.height);
+            if (i == 0) shapeRenderer.setColor(.94f, .72f, .25f, 1f);
+            else if (i >= 1 && i <= 3) shapeRenderer.setColor(.36f, .62f, .94f, disabled ? .45f : 1f);
+            else if (i == 5) shapeRenderer.setColor(.76f, .37f, .34f, disabled ? .4f : 1f);
+            else if (i == 6) shapeRenderer.setColor(.70f, .57f, .31f, disabled ? .4f : 1f);
+            else shapeRenderer.setColor(.55f, .61f, .70f, .8f);
+            shapeRenderer.rect(r.x, r.y + r.height - 2f, r.width, 2f);
         }
         shapeRenderer.end();
+
         batch.begin();
-        font.getData().setScale(.5f);
+        font.getData().setScale(compact ? .36f : .43f);
+        font.setColor(new Color(.96f, .84f, .55f, 1f));
+        font.draw(batch, "SPELLS & ACTIONS", panelX + 16f, panelTop - 8f);
+        font.getData().setScale(compact ? .24f : .29f);
+        font.setColor(new Color(.58f, .64f, .74f, 1f));
+        String subtitle = portrait ? "ARROWS / SPELLS / ITEMS" : "RUN POWERS / SPELLS / ITEMS";
+        font.draw(batch, subtitle, panelX + (compact ? 82f : 92f), panelTop - 8f);
+
         for (int i = 0; i < uiButtons.length; i++) {
-            String label;
-            if (i == 0)
-                label = "ARROW (" + player.getArrowsRemaining() + (bounceArrows > 0 ? " +" + bounceArrows + "B" : "") + ")";
-            else if (i <= 3)
-                label = (i - 1 < ownedSpells.size) ? ownedSpells.get(i - 1).getLabel() + " (" + manaCost(ownedSpells.get(i - 1)) + ")" : "-";
-            else if (i == 4) label = "CANCEL";
-            else if (i == 5) label = "SACRIFICE";
-            else label = roomRerolled ? "REROLL (used)" : "REROLL (1)";
             Rectangle r = uiButtons[i];
-            font.setColor(Color.WHITE);
-            font.draw(batch, label, r.x + 8f, r.y + r.height / 2f + font.getCapHeight() / 2f);
+            boolean disabled = (i >= 1 && i <= 3 && i - 1 >= ownedSpells.size)
+                || (i == 5 && activeCard == null)
+                || (i == 6 && (activeCard == null || roomRerolled));
+            font.getData().setScale(compact ? .29f : .39f);
+            font.setColor(disabled ? new Color(.43f, .47f, .54f, 1f) : new Color(.93f, .95f, 1f, 1f));
+            String title = uiSlotTitle(i, compact);
+            GlyphLayout titleLayout = new GlyphLayout(font, title);
+            float titleX = r.x + Math.max(3f, (r.width - titleLayout.width) / 2f);
+            float titleY = r.y + r.height * .62f + titleLayout.height * .5f;
+            font.draw(batch, title, titleX, titleY);
+
+            font.getData().setScale(compact ? .20f : .25f);
+            font.setColor(disabled ? new Color(.34f, .38f, .45f, 1f) : new Color(.62f, .70f, .80f, 1f));
+            String detail = uiSlotDetail(i);
+            GlyphLayout detailLayout = new GlyphLayout(font, detail);
+            if (detailLayout.width > r.width - 6f && compact) {
+                detail = i == 5 ? "CARD → GAIN" : (i == 6 ? "SWAP CARD" : detail);
+                detailLayout.setText(font, detail);
+            }
+            font.draw(batch, detail, r.x + Math.max(3f, (r.width - detailLayout.width) / 2f),
+                r.y + r.height * .28f + detailLayout.height * .5f);
         }
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
         batch.end();
     }
-
-    // Same scale maths as positionCards(), so the dragged card is centred on the pointer
-    private float currentCardScale() {
-        float h = Gdx.graphics.getHeight();
-        int n = Math.max(1, hand.size);
-        float boardRight = Player.getBoardX() + Player.BOARD_SIZE * Player.TILE_SIZE;
-        float sideSpace = Gdx.graphics.getWidth() - boardRight - 16f;
-        float widthScale = sideSpace / 115f;
-        float requiredHeight = 155f * (1f + (n - 1) * 0.66f);
-        float heightScale = (h - 32f) / requiredHeight;
-        return MathUtils.clamp(Math.min(1.05f, Math.min(widthScale, heightScale)), 0.55f, 1.05f);
-    }
+    // --------------------------------------
 
     private void selectCardFromTap(Card c) {
         clickSound.play();
@@ -3155,102 +3383,93 @@ public class Main extends Game {
         tooltipEnemy = null;
     }
 
-    // Returns true when it consumed the touch
+    // Drag one card onto another to fuse them. A short tap still selects a card.
     private boolean handleCardDrag() {
-        // Badge mode needs the normal card-tap handler; drag handling would consume
-        // the tap before the badge can be applied.
-        if (usingAugmentBadge) {
-            dragCandidate = null;
-            draggedCard = null;
-            return false;
-        }
+        float touchX = Gdx.input.getX();
+        float touchY = Gdx.graphics.getHeight() - Gdx.input.getY();
 
-        // Dragging only works when no card/spell/arrow mode is active
-        if (activeCard != null || shootMode || selectedSpell != null) {
+        if (!Gdx.input.isTouched()) {
             if (draggedCard != null) {
+                Card source = draggedCard;
+                source.stopDrag();
                 draggedCard = null;
+
+                Card target = null;
+                for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
+                    Card candidate = hand.get(i);
+                    if (candidate != source && !candidate.isUsed()
+                        && candidate.isClicked(touchX, touchY)) {
+                        target = candidate;
+                        break;
+                    }
+                }
+
+                if (target != null) {
+                    Card fused = CardCombination.combine(source, target);
+                    if (fused != null) {
+                        int sourceIndex = hand.indexOf(source, true);
+                        int targetIndex = hand.indexOf(target, true);
+                        int insertAt = Math.min(sourceIndex, targetIndex);
+                        hand.removeValue(source, true);
+                        hand.removeValue(target, true);
+                        hand.insert(Math.min(insertAt, hand.size), fused);
+                        if (activeCard == source || activeCard == target) activeCard = null;
+                        if (activeCard == null) player.setSelected(false);
+                        handPageIndex = Math.min(handPageIndex,
+                            Math.max(0, (hand.size - 1) / VISIBLE_HAND_CARDS));
+                        if (combineSound != null) combineSound.play();
+                        message(source.getName() + " + " + target.getName()
+                            + " = " + fused.getName() + "!", 2f);
+                        autosave();
+                    } else {
+                        message("Those cards have no fusion recipe.", 1.4f);
+                    }
+                } else {
+                    // A drag released away from another card returns to its hand slot.
+                    message("Drop onto another card to combine.", 1.2f);
+                }
+                dragCandidate = null;
                 positionCards();
+                return true;
             }
             dragCandidate = null;
             return false;
         }
 
-        float x = Gdx.input.getX(), y = Gdx.graphics.getHeight() - Gdx.input.getY();
+        if (draggedCard != null) {
+            draggedCard.dragTo(touchX, touchY);
+            return true;
+        }
 
-        // Press: remember which card was grabbed
+        if (dragCandidate != null) {
+            float dx = touchX - dragDownX;
+            float dy = touchY - dragDownY;
+            if (dx * dx + dy * dy >= 18f * 18f) {
+                draggedCard = dragCandidate;
+                if (activeCard != null) activeCard.setSelected(false);
+                activeCard = null;
+                player.setSelected(false);
+                draggedCard.startDrag(dragDownX, dragDownY);
+                draggedCard.dragTo(touchX, touchY);
+                return true;
+            }
+            return false;
+        }
+
         if (Gdx.input.justTouched()) {
-            dragCandidate = null;
-            draggedCard = null;
-            for (int i = hand.size - 1; i >= 0; i--) {
-                if (hand.get(i).isClicked(x, y)) {
-                    dragCandidate = hand.get(i);
+            for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
+                Card candidate = hand.get(i);
+                if (!candidate.isUsed() && candidate.isClicked(touchX, touchY)) {
+                    dragCandidate = candidate;
+                    dragDownX = touchX;
+                    dragDownY = touchY;
                     break;
                 }
             }
-            dragDownX = x;
-            dragDownY = y;
-            return dragCandidate != null;
         }
-
-        if (dragCandidate == null) return false;
-
-        // Held: start dragging once the pointer moves far enough, then follow it
-        if (Gdx.input.isTouched()) {
-            if (draggedCard == null && Math.hypot(x - dragDownX, y - dragDownY) > DRAG_THRESHOLD) {
-                draggedCard = dragCandidate;
-            }
-            if (draggedCard != null) {
-                float s = currentCardScale();
-                draggedCard.setPosition(x - 115f * s / 2f, y - 155f * s / 2f);
-            }
-            return true;
-        }
-
-        // Released
-        Card grabbed = dragCandidate;
-        dragCandidate = null;
-
-        if (draggedCard == null) {          // never moved far enough = it was a tap
-            selectCardFromTap(grabbed);
-            return true;
-        }
-
-        Card dragged = draggedCard;
-        draggedCard = null;
-
-        Card target = null;
-        for (int i = hand.size - 1; i >= 0; i--) {
-            Card c = hand.get(i);
-            if (c != dragged && c.isClicked(x, y)) {
-                target = c;
-                break;
-            }
-        }
-
-        Card result = (target == null) ? null : CardCombination.combine(dragged, target);
-        if (result != null) {
-            hand.removeValue(dragged, true);
-            hand.removeValue(target, true);
-            cardModifiers.remove(dragged);
-            cardModifiers.remove(target);
-            hand.add(result);
-            positionCards();
-            if (combineSound != null) combineSound.play();
-            else augmentSound.play();
-            spawnBurst(x, y, 18, .75f, .55f, 1f, 30f);
-            message("Combined into " + result.getName() + "!", 2f);
-            autosave();
-        } else {
-            positionCards();                // snap back
-            if (target != null) {
-                playSfx(errorSound);
-                message("Those cards can't combine", 1.5f);
-            }
-        }
-        return true;
+        return false;
     }
 
-    // ---------- Meta progression (Souls) ----------
     private void loadMeta() {
         souls = metaPrefs.getInteger("souls", 0);
         for (int i = 0; i < upLevels.length; i++) upLevels[i] = metaPrefs.getInteger("up" + i, 0);
@@ -3744,17 +3963,18 @@ public class Main extends Game {
 
         Card.MovementType type = types[random.nextInt(types.length)];
 
-        Card newCard = createCard(type);
-        hand.add(newCard);
+        Card c = createCard(type);
+        hand.add(c);                                   // newCard in addRandomCardToHand()
+        c.dealFrom(Gdx.graphics.getWidth() + 120f, -200f);
+        c.dealFlipIn();
         positionCards();
 
-        message("NEW CARD: " + newCard.getName(), 1.2f);
+        message("NEW CARD: " + c.getName(), 1.2f);
     }
 
     // Icon reference page: every curse and status icon with its meaning. Called inside an active batch.
     private static final int TUT_ITEMS_PER_PAGE = 8;
 
-    // Icon reference page: every curse and status icon with its meaning. Called inside an active batch.
     private void renderTutorialCurses(float w, float top, int page) {
         EnemyCurse[] cs = EnemyCurse.values();
         int total = cs.length + 4;
@@ -3884,6 +4104,9 @@ public class Main extends Game {
         savePrefs.putInteger("mana", mana);
         savePrefs.putInteger("bounceArrows", bounceArrows);
         savePrefs.putInteger("runBonusSouls", runBonusSouls);
+        String savedOath = kingEnchantments.getActiveEnchantments().isEmpty()
+            ? "" : kingEnchantments.getActiveEnchantments().iterator().next().name();
+        savePrefs.putString("kingEnchantment", savedOath);
         for (int i = 0; i < PACT_COUNT; i++) savePrefs.putBoolean("runPact" + i, runPact[i]);
         savePrefs.putInteger("objectiveType", objectiveType);
         savePrefs.putInteger("objectiveTarget", objectiveTarget);
@@ -3930,12 +4153,19 @@ public class Main extends Game {
         }
 
         clearMoveAnim();
+        resetTacticalMark();
         menuVisible = false;
         bestiaryVisible = false;
         tutorialVisible = false;
         evtVisible = false;
         omen = OMEN_NONE;
         difficulty = Math.max(1, savePrefs.getInteger("difficulty", 1));
+        kingEnchantments.resetRun();
+        String savedOath = savePrefs.getString("kingEnchantment", "");
+        if (!savedOath.isEmpty()) {
+            try { kingEnchantments.enchant(KingEnchantmentSystem.Enchantment.valueOf(savedOath)); }
+            catch (IllegalArgumentException ignored) { }
+        }
         playerHp = Math.max(1, savePrefs.getInteger("playerHp", 3));
         playerMaxHp = Math.max(playerHp, savePrefs.getInteger("playerMaxHp", 3));
         defense = MathUtils.clamp(savePrefs.getInteger("defense", 0), 0, MAX_DEFENSE);
@@ -3954,6 +4184,7 @@ public class Main extends Game {
 
         if (player != null) player.dispose();
         player = new Player(2, 2);
+        player.setCorruption(corruption);
 
         hand.clear();
         cardModifiers.clear();
@@ -4012,6 +4243,9 @@ public class Main extends Game {
 
         rollPoison();
         generateEnemiesForCurrentRoom();
+        kingEnchantments.beginRoom();
+        if (kingEnchantments.getActiveEnchantments().isEmpty()) kingEnchantmentScreen.show();
+        else kingEnchantmentScreen.hide();
         positionCards();
         if (backgroundMusic != null && !backgroundMusic.isPlaying()) backgroundMusic.play();
         roomRerolled = savePrefs.getBoolean("roomRerolled", false);
@@ -4037,6 +4271,7 @@ public class Main extends Game {
         arrowInFlight = false;
         pendingHitEnemy = null;
         activeCard = null;
+        if (draggedCard != null) draggedCard.stopDrag();
         draggedCard = null;
         dragCandidate = null;
         if (player != null) player.setSelected(false);
@@ -4318,6 +4553,9 @@ public class Main extends Game {
         evtVisible = false;
         omen = OMEN_NONE;
         corruption.reset();
+        kingEnchantments.resetRun();
+        kingEnchantmentScreen.hide();
+        resetTacticalMark();
 
         if (blitzMode) {
             blitzManager.start();
@@ -4344,6 +4582,7 @@ public class Main extends Game {
 
         if (player != null) player.dispose();
         player = new Player(2, 2);
+        player.setCorruption(corruption);
 
         resetPlayerStats();
         buildStartingHand();
@@ -4354,6 +4593,8 @@ public class Main extends Game {
 
         rollPoison();
         generateEnemiesForCurrentRoom();
+        kingEnchantments.beginRoom();
+        if (!blitzMode) kingEnchantmentScreen.show();
         positionCards();
 
         if (backgroundMusic != null && !backgroundMusic.isPlaying()) {
@@ -4794,6 +5035,15 @@ public class Main extends Game {
             }
             return;
         }
+        if (kingEnchantmentScreen.isVisible()) {
+            if (Gdx.input.justTouched()) {
+                float ex = Gdx.input.getX(), ey = Gdx.graphics.getHeight() - Gdx.input.getY();
+                KingEnchantmentSystem.Enchantment chosen = kingEnchantmentScreen.handleClick(ex, ey, kingEnchantments);
+                if (chosen != null) applyKingEnchantment(chosen);
+                else if (!kingEnchantmentScreen.isVisible()) clickSound.play();
+            }
+            return;
+        }
         if (blitzRelicShop.isVisible()) {
             handleBlitzRelicShopInput();
             return;
@@ -4856,8 +5106,61 @@ public class Main extends Game {
         }
 
         layoutAugmentBadgeButton();
+        layoutEnchantmentButton();
         if (Gdx.input.justTouched()) {
             float ux = Gdx.input.getX(), uy = Gdx.graphics.getHeight() - Gdx.input.getY();
+            layoutInventoryTabButton();
+            if (inventoryTabButton.contains(ux, uy)) {
+                inventoryOpen = !inventoryOpen;
+                clickSound.play();
+                return;
+            }
+            if (inventoryOpen) layoutRoyalGuardButton();
+            if (inventoryOpen && !blitzMode && royalGuardButton.contains(ux, uy)) {
+                if (!royalGuardAvailable || royalGuardArmed) {
+                    playSfx(errorSound);
+                    message(royalGuardArmed ? "Royal Guard is already armed." : "Royal Guard returns next room.", 1.6f);
+                } else {
+                    royalGuardAvailable = false;
+                    royalGuardArmed = true;
+                    placingTacticalMark = false;
+                    if (activeCard != null) activeCard.setSelected(false);
+                    activeCard = null;
+                    selectedSpell = null;
+                    shootMode = false;
+                    player.setSelected(false);
+                    playSfx(blessingSound);
+                    message("ROYAL GUARD: the first enemy to reach an adjacent tile is stunned.", 2.2f);
+                }
+                clickSound.play();
+                return;
+            }
+            if (inventoryOpen) layoutTacticalMarkButton();
+            if (inventoryOpen && !blitzMode && tacticalMarkButton.contains(ux, uy)) {
+                if (!tacticalMarkAvailable) {
+                    playSfx(errorSound);
+                    message("Tactical Mark is spent until the next room.", 1.6f);
+                } else {
+                    placingTacticalMark = !placingTacticalMark;
+                    if (activeCard != null) activeCard.setSelected(false);
+                    activeCard = null;
+                    selectedSpell = null;
+                    shootMode = false;
+                    player.setSelected(false);
+                    message(placingTacticalMark ? "TACTICAL MARK: tap an empty tile to lure the nearest enemy." : "Tactical Mark cancelled.", 2f);
+                }
+                clickSound.play();
+                return;
+            }
+            if (inventoryOpen && !blitzMode && enchantmentsButton.contains(ux, uy)) {
+                clickSound.play();
+                kingEnchantmentScreen.show();
+                return;
+            }
+            if (hand.size > VISIBLE_HAND_CARDS && handCycleButton.contains(ux, uy)) {
+                cycleHandPage();
+                return;
+            }
             if (badgeUseButton.contains(ux, uy)) {
                 if (augmentBadges <= 0) {
                     playSfx(errorSound);
@@ -4891,6 +5194,10 @@ public class Main extends Game {
         }
         if (handleCardDrag()) return;
 
+        if (Gdx.input.isKeyJustPressed(Input.Keys.I)) {
+            inventoryOpen = !inventoryOpen;
+            return;
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.E)) {
             enemyDeckVisible = true;
             return;
@@ -4935,9 +5242,37 @@ public class Main extends Game {
         if (!Gdx.input.justTouched()) return;
 
         float touchX = Gdx.input.getX(), touchY = Gdx.graphics.getHeight() - Gdx.input.getY();
+        if (placingTacticalMark) {
+            int markX = (int) ((touchX - Player.getBoardX()) / Player.getTileSize());
+            int markY = (int) ((touchY - Player.getBoardY()) / Player.getTileSize());
+            if (markX < 0 || markX >= Player.BOARD_SIZE || markY < 0 || markY >= Player.BOARD_SIZE) {
+                message("Choose a tile on the board.", 1.2f);
+                return;
+            }
+            if ((markX == player.getX() && markY == player.getY()) || getEnemyAt(markX, markY, null) != null) {
+                message("Mark an empty tile, not a piece's square.", 1.5f);
+                return;
+            }
+            Enemy target = nearestEnemyTo(player.getX(), player.getY());
+            if (target == null) {
+                placingTacticalMark = false;
+                message("No enemy left to lure.", 1.5f);
+                return;
+            }
+            tacticalMarkX = markX;
+            tacticalMarkY = markY;
+            tacticalMarkTarget = target;
+            tacticalMarkArmed = true;
+            tacticalMarkAvailable = false;
+            placingTacticalMark = false;
+            spawnBurst(tileCenterX(markX), tileCenterY(markY), 14, 1f, .68f, .22f, 28f);
+            message("MARK SET: " + target.getDisplayName() + " will chase that tile next turn.", 2.2f);
+            autosave();
+            return;
+        }
         if (activeCard == null) {
             boolean hitCard = false;
-            for (int i = hand.size - 1; i >= 0; i--) {
+            for (int i = visibleHandEnd() - 1; i >= visibleHandStart(); i--) {
                 Card c = hand.get(i);
                 if (c.isClicked(touchX, touchY)) {
                     clickSound.play();
@@ -4983,6 +5318,8 @@ public class Main extends Game {
             if (player.isClicked(touchX, touchY) && hand.size > 0) {
                 clickSound.play();
                 kingCardCycleIndex = (kingCardCycleIndex + 1) % hand.size;
+                handPageIndex = kingCardCycleIndex / VISIBLE_HAND_CARDS;
+                positionCards();
                 activeCard = hand.get(kingCardCycleIndex);
                 activeCard.setSelected(true);
                 player.setSelected(false);
@@ -5006,6 +5343,8 @@ public class Main extends Game {
             clickSound.play();
             kingCardCycleIndex = (kingCardCycleIndex + 1) % Math.max(1, hand.size);
             activeCard.setSelected(false);
+            handPageIndex = kingCardCycleIndex / VISIBLE_HAND_CARDS;
+            positionCards();
             activeCard = hand.get(kingCardCycleIndex);
             activeCard.setSelected(true);
             player.setSelected(true);
@@ -5013,10 +5352,11 @@ public class Main extends Game {
             return;
         }
 
-        int tx = (int) ((touchX - Player.getBoardX()) / Player.TILE_SIZE), ty = (int) ((touchY - Player.getBoardY()) / Player.TILE_SIZE);
+        int tx = (int) ((touchX - Player.getBoardX()) / Player.getTileSize()), ty = (int) ((touchY - Player.getBoardY()) / Player.getTileSize());
         boolean valid = activeCard.hasTeleportationInfusion() ? tx >= 0 && tx < Player.BOARD_SIZE && ty >= 0 && ty < Player.BOARD_SIZE : player.isValidMove(tx, ty, activeCard.getMovementRules(), board);
         if (!valid) {
             playSfx(errorSound);
+            activeCard.shake();
             message("Invalid move!", 1.5f);
             return;
         }
@@ -5077,6 +5417,7 @@ public class Main extends Game {
         captureCard = played;
         boolean captured = checkPlayerCapture();
         captureCard = null;
+        applyChessTactics(played);
         if (captured) {
             startShake(0.30f, 10f);
             playSfx(smashSound);
@@ -5092,21 +5433,37 @@ public class Main extends Game {
         updateObjectiveProgress();
     }
 
+    private void updateRetreatAnim(float delta) {
+        if (!retreatAnimActive) return;
+        retreatAnimT += delta;
+        if (retreatAnimT >= RETREAT_ANIM_DURATION) retreatAnimActive = false;
+    }
+
     private void beginPlayerAnim() {
-        if (!moveAnimActive) return;
-        float t = MathUtils.clamp(moveAnimT / moveAnimDur, 0f, 1f);
+        if (!moveAnimActive && !retreatAnimActive) return;
+        boolean retreat = !moveAnimActive && retreatAnimActive;
+        float t = retreat
+            ? MathUtils.clamp(retreatAnimT / RETREAT_ANIM_DURATION, 0f, 1f)
+            : MathUtils.clamp(moveAnimT / moveAnimDur, 0f, 1f);
         float p, arc = 0f, sc = 1f;
-        if (moveAnimJump) {
-            p = (float) Math.pow(t, 1.5f); // slow rise, fast fall = smash
-            float s = MathUtils.sin(MathUtils.PI * p);
-            arc = JUMP_HEIGHT * s;
-            sc = 1f + 0.3f * s;
+        int fromX = retreat ? retreatFromX : moveFromX;
+        int fromY = retreat ? retreatFromY : moveFromY;
+        if (retreat) {
+            p = t * t * (3f - 2f * t);
+            float recoil = MathUtils.sin(MathUtils.PI * p);
+            arc = Player.getTileSize() * .12f * recoil;
+            sc = 1f - .06f * recoil;
+        } else if (moveAnimJump) {
+            p = (float) Math.pow(t, 1.5f);
+            float jump = MathUtils.sin(MathUtils.PI * p);
+            arc = JUMP_HEIGHT * jump;
+            sc = 1f + 0.3f * jump;
         } else {
             float inv = 1f - t;
-            p = 1f - inv * inv * inv; // ease-out
+            p = 1f - inv * inv * inv;
         }
-        float ox = (moveFromX - player.getX()) * Player.TILE_SIZE * (1f - p);
-        float oy = (moveFromY - player.getY()) * Player.TILE_SIZE * (1f - p);
+        float ox = (fromX - player.getX()) * Player.getTileSize() * (1f - p);
+        float oy = (fromY - player.getY()) * Player.getTileSize() * (1f - p);
         float cx = tileCenterX(player.getX()), cy = tileCenterY(player.getY());
         tmpMat.idt().translate(cx + ox, cy + oy + arc, 0f).scale(sc, sc, 1f).translate(-cx, -cy, 0f);
         batch.setTransformMatrix(tmpMat);
@@ -5181,6 +5538,80 @@ public class Main extends Game {
         message(selectedSpell.getLabel() + ": tap an enemy", 1.5f);
     }
 
+    /** Resolve tactical effects from the chess geometry of the card just played. */
+    private void applyChessTactics(Card played) {
+        if (played == null || gameOverScreen.isVisible()) return;
+        Card.MovementType form = played.getCurrentForm();
+        int px = player.getX(), py = player.getY();
+
+        // CHECK: the nearest enemy inside this card's movement pattern loses its next action.
+        Enemy checkedEnemy = null;
+        int checkedDistance = Integer.MAX_VALUE;
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if (!e.isAlive() || e.isFalling()) continue;
+            int dx = Math.abs(e.getX() - px), dy = Math.abs(e.getY() - py);
+            if (dx == 0 && dy == 0) continue;
+            if (!played.getMovementRules().isValidMove(px, py, e.getX(), e.getY(), Player.BOARD_SIZE)) continue;
+            int distance = dx * dx + dy * dy;
+            if (distance < checkedDistance) { checkedDistance = distance; checkedEnemy = e; }
+        }
+        if (checkedEnemy != null) {
+            stunnedTurns.put(checkedEnemy, Math.max(1, stunnedTurns.get(checkedEnemy, 0)));
+            spawnFloat("CHECK!", tileCenterX(checkedEnemy.getX()), tileCenterY(checkedEnemy.getY()) + 38f, .55f, .85f, 1f);
+            spawnBurst(tileCenterX(checkedEnemy.getX()), tileCenterY(checkedEnemy.getY()), 9, .45f, .8f, 1f, 28f);
+        }
+
+        // KNIGHT'S FORK: a Knight landing that attacks two enemies stuns the pair.
+        if (form == Card.MovementType.KNIGHT) {
+            Array<Enemy> forked = new Array<>();
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy e = enemies.get(i);
+                if (!e.isAlive() || e.isFalling()) continue;
+                int dx = Math.abs(e.getX() - px), dy = Math.abs(e.getY() - py);
+                if ((dx == 1 && dy == 2) || (dx == 2 && dy == 1)) forked.add(e);
+            }
+            if (forked.size >= 2) {
+                for (int i = 0; i < 2; i++) {
+                    Enemy e = forked.get(i);
+                    stunnedTurns.put(e, Math.max(1, stunnedTurns.get(e, 0)));
+                    spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 7, .35f, .75f, 1f, 24f);
+                }
+                showPopup("KNIGHT FORK!", .35f, .75f, 1f, .9f);
+                playSfx(blessingSound);
+            }
+        }
+
+        // SKEWER: a slider pierces the first enemy and hits a second enemy behind it.
+        if (form == Card.MovementType.ROOK || form == Card.MovementType.BISHOP || form == Card.MovementType.QUEEN) {
+            int[][] directions = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}};
+            for (int[] direction : directions) {
+                int dx = direction[0], dy = direction[1];
+                boolean diagonal = dx != 0 && dy != 0;
+                if (form == Card.MovementType.ROOK && diagonal) continue;
+                if (form == Card.MovementType.BISHOP && !diagonal) continue;
+                Enemy first = null, second = null;
+                int firstStep = Integer.MAX_VALUE, secondStep = Integer.MAX_VALUE;
+                for (int i = 0; i < enemies.size; i++) {
+                    Enemy e = enemies.get(i);
+                    if (!e.isAlive() || e.isFalling()) continue;
+                    int ex = e.getX() - px, ey = e.getY() - py;
+                    if (dx == 0 ? ex != 0 : ex * dy != ey * dx) continue;
+                    int steps = dx != 0 ? ex / dx : ey / dy;
+                    if (steps <= 0) continue;
+                    if (steps < firstStep) { second = first; secondStep = firstStep; first = e; firstStep = steps; }
+                    else if (steps < secondStep) { second = e; secondStep = steps; }
+                }
+                if (first != null && second != null) {
+                    damageEnemy(second, 1, .45f, .75f, 1f);
+                    spawnFloat("SKEWER", tileCenterX(second.getX()), tileCenterY(second.getY()) + 34f, .45f, .75f, 1f);
+                    showPopup("LINE SKEWER!", .45f, .75f, 1f, .8f);
+                    break;
+                }
+            }
+        }
+    }
+
     private void startFrenzy() {
         frenzyTurns = 4; // the capture's own card is free too, so 3 more free cards after it
         playSfx(blessingSound);
@@ -5247,7 +5678,10 @@ public class Main extends Game {
         }
         int surge = card.hasManaSurge() ? 2 : 0;
         if (surge > 0) spawnFloat("+2 MP", tileCenterX(player.getX()), tileCenterY(player.getY()) + 48f, .4f, .65f, 1f);
-        if (card.isUsed()) hand.removeValue(card, true);
+        if (card.isUsed()) {
+            hand.removeValue(card, true);
+            sendCardAway(card);
+        }
         mana = Math.min(getMaxMana(), mana + MANA_REGEN_PER_CARD + surge + (hasRelic(Relic.Blessing.MANA_SPRING) ? 1 : 0) + (runPact[0] ? 1 : 0));
         positionCards();
         giveRandomCard();
@@ -5449,6 +5883,12 @@ public class Main extends Game {
             if (!critical) {
                 int cardDamage = cc == null ? 1 : cc.getAttackDamage();
                 int captureDamage = Math.max(rollCaptureDamage(), cardDamage);
+                if (kingEnchantments.hasHunterMark()
+                    && target.getHealth() * 2 > target.getMaxHealth()) {
+                    captureDamage++;
+                    spawnFloat("HUNTER'S MARK +1", tileCenterX(target.getX()),
+                        tileCenterY(target.getY()) + 54f, .45f, .9f, .75f);
+                }
                 if (cc != null && cc.hasFury()) {
                     captureDamage += 1;
                     spawnFloat("FURY +1", tileCenterX(player.getX()), tileCenterY(player.getY()) + 62f, 1f, .3f, .3f);
@@ -5512,6 +5952,7 @@ public class Main extends Game {
 
             spawnSlash(player.getX(), player.getY());
             registerCapture(target, cc, curse, invisibleTurns > 0, captureHealthPercent);
+            if (kingEnchantments.consumeBloodOathTrigger()) healPlayer(1);
             triggerCardEvolution(cc, target);
             triggerNewAugmentChain(cc, target);
             refillHandIfNeeded();
@@ -5524,6 +5965,12 @@ public class Main extends Game {
             }
         }
 
+        Enemy survivingDefender = getEnemyAt(player.getX(), player.getY(), null);
+        if (survivingDefender != null && !gameOverScreen.isVisible()) {
+            damagePlayer(1);
+            message("The enemy survived your capture and counterattacked!", 1.7f);
+            if (!gameOverScreen.isVisible()) retreatPlayerAfterHit(survivingDefender);
+        }
         return capturedAny;
     }
     /**
@@ -5721,11 +6168,12 @@ public class Main extends Game {
         activeTurnEnemy = null;
         activeEnemyStepsRemaining = 0;
         enemyTurnMoveInFlight = false;
+        enemyIntentDelay = 0f;
 
         for (int i = 0; i < enemies.size; i++) {
             Enemy e = enemies.get(i);
             if (!e.isAlive()) continue;
-            if (cloaked && enemyCurses.get(e) != EnemyCurse.HUNTER) continue;
+            if (cloaked && enemyCurses.get(e) != HUNTER) continue;
 
             Integer stun = stunnedTurns.get(e);
             if (stun != null && stun > 0) {
@@ -5737,7 +6185,7 @@ public class Main extends Game {
         }
 
         enemyTurnActive = enemyTurnQueue.size > 0;
-        if (enemyTurnActive) startNextEnemyInSequence();
+        if (enemyTurnActive) enemyIntentDelay = .48f;
         else finishEnemyTurnSequence();
     }
 
@@ -5765,13 +6213,21 @@ public class Main extends Game {
         }
 
         activeEnemyStepsRemaining--;
-        enemyTurnMoveInFlight = e.moveTowards(player.getX(), player.getY());
+        int chaseX = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkX : player.getX();
+        int chaseY = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkY : player.getY();
+        enemyTurnMoveInFlight = e.moveTowards(chaseX, chaseY, enemies);
         if (!enemyTurnMoveInFlight) finishActiveEnemy();
     }
 
     /** Called once per frame; Enemy.render advances the active sprite animation. */
     private void updateEnemyTurnSequence() {
-        if (!enemyTurnActive || !enemyTurnMoveInFlight || activeTurnEnemy == null) return;
+        if (!enemyTurnActive) return;
+        if (enemyIntentDelay > 0f) {
+            enemyIntentDelay = Math.max(0f, enemyIntentDelay - Gdx.graphics.getDeltaTime());
+            if (enemyIntentDelay <= 0f) startNextEnemyInSequence();
+            return;
+        }
+        if (!enemyTurnMoveInFlight || activeTurnEnemy == null) return;
         if (activeTurnEnemy.isMoving()) return;
 
         enemyTurnMoveInFlight = false;
@@ -5794,6 +6250,17 @@ public class Main extends Game {
             }
         }
 
+        if (e.isAlive() && royalGuardArmed
+            && Math.max(Math.abs(e.getX() - player.getX()), Math.abs(e.getY() - player.getY())) <= 1) {
+            royalGuardArmed = false;
+            stunnedTurns.put(e, 1);
+            spawnBurst(tileCenterX(e.getX()), tileCenterY(e.getY()), 18, .42f, .82f, 1f, 58f);
+            spawnFloat("ROYAL GUARD", tileCenterX(e.getX()), tileCenterY(e.getY()) + 34f, .45f, .88f, 1f);
+            message("Royal Guard interrupted " + e.getDisplayName() + "!", 2f);
+            finishActiveEnemy();
+            return;
+        }
+
         if (e.isAlive() && enemyCapturedPlayer(e)) {
             EnemyCurse curse = enemyCurses.get(e);
             if (curse == EnemyCurse.VENGEFUL) {
@@ -5807,6 +6274,8 @@ public class Main extends Game {
             int hit = difficulty >= (runPact[1] ? 4 : 8) ? 2 : 1;
             damagePlayer(hit);
             message("Enemy hit you! (-" + hit + ")", 1.5f);
+            if (!gameOverScreen.isVisible()) retreatPlayerAfterHit(e);
+            stunnedTurns.put(e, 1);
             finishActiveEnemy();
             return;
         }
@@ -5823,7 +6292,15 @@ public class Main extends Game {
 
     private void finishActiveEnemy() {
         Enemy finished = activeTurnEnemy;
-        if (finished != null && finished.isAlive() && !enemyCapturedPlayer(finished)) {
+        if (finished == tacticalMarkTarget) {
+            tacticalMarkArmed = false;
+            tacticalMarkTarget = null;
+            tacticalMarkX = tacticalMarkY = -1;
+            message("TACTICAL MARK CONSUMED.", 1.4f);
+        }
+        Integer activeStun = finished == null ? null : stunnedTurns.get(finished);
+        if (finished != null && finished.isAlive() && !enemyCapturedPlayer(finished)
+            && (activeStun == null || activeStun <= 0)) {
             applyEnemyArchetypeAttack(finished);
         }
         activeTurnEnemy = null;
@@ -5840,10 +6317,16 @@ public class Main extends Game {
     private void finishEnemyTurnSequence() {
         enemyTurnActive = false;
         enemyTurnMoveInFlight = false;
+        enemyIntentDelay = 0f;
         activeTurnEnemy = null;
         activeEnemyStepsRemaining = 0;
         enemyTurnQueue.clear();
         enemyTurnQueueIndex = 0;
+        if (tacticalMarkTarget != null && !tacticalMarkTarget.isAlive()) {
+            tacticalMarkArmed = false;
+            tacticalMarkTarget = null;
+            tacticalMarkX = tacticalMarkY = -1;
+        }
         if (!gameOverScreen.isVisible() && !rewardScreen.isVisible() && allEnemiesDefeated()) winRoom();
     }
 
@@ -5981,7 +6464,8 @@ public class Main extends Game {
                 damagePlayer(hit);
                 message("Enemy hit you! (-" + hit + ")", 1.5f);
                 if (gameOverScreen.isVisible()) return;
-
+                retreatPlayerAfterHit(e);
+                stunnedTurns.put(e, 1);
             }
         }
 
@@ -6056,6 +6540,14 @@ public class Main extends Game {
             );
         }
 
+        if (dmg > 0 && dmg >= playerHp && kingEnchantments.consumePhoenixSave()) {
+            playerHp = 1;
+            spawnBurst(tileCenterX(player.getX()), tileCenterY(player.getY()), 24, .9f, .65f, .25f, 65f);
+            showPopup("PHOENIX RUNE", 1f, .72f, .25f, 1.5f);
+            message("Phoenix Rune prevented a fatal hit!", 2f);
+            return true;
+        }
+
         playerHp = Math.max(0, playerHp - dmg);
 
         if (playerHp <= 0) {
@@ -6075,6 +6567,47 @@ public class Main extends Game {
         }
     }
 
+    /** Move the King to a free adjacent tile after contact; never leave two living pieces stacked. */
+    private boolean retreatPlayerAfterHit(Enemy attacker) {
+        int px = player.getX(), py = player.getY();
+        int[][] directions = {{0,1},{1,0},{0,-1},{-1,0},{1,1},{1,-1},{-1,-1},{-1,1}};
+        int bestX = -1, bestY = -1, bestSafety = Integer.MIN_VALUE;
+        for (int[] direction : directions) {
+            int tx = px + direction[0], ty = py + direction[1];
+            if (tx < 0 || tx >= Player.BOARD_SIZE || ty < 0 || ty >= Player.BOARD_SIZE) continue;
+            if (getEnemyAt(tx, ty, attacker) != null) continue;
+            int nearest = Integer.MAX_VALUE;
+            for (int i = 0; i < enemies.size; i++) {
+                Enemy other = enemies.get(i);
+                if (!other.isAlive() || other == attacker) continue;
+                nearest = Math.min(nearest, Math.abs(other.getX() - tx) + Math.abs(other.getY() - ty));
+            }
+            int safety = (nearest == Integer.MAX_VALUE ? 20 : nearest * 10)
+                - (board.isPoisoned(tx, ty) ? 100 : 0);
+            if (safety > bestSafety) { bestSafety = safety; bestX = tx; bestY = ty; }
+        }
+        if (bestX < 0) {
+            int bestDistance = Integer.MAX_VALUE;
+            for (int tx = 0; tx < Player.BOARD_SIZE; tx++) for (int ty = 0; ty < Player.BOARD_SIZE; ty++) {
+                if (tx == px && ty == py) continue;
+                if (getEnemyAt(tx, ty, attacker) != null) continue;
+                int distance = Math.abs(tx - px) + Math.abs(ty - py);
+                if (distance < bestDistance) { bestDistance = distance; bestX = tx; bestY = ty; }
+            }
+        }
+        if (bestX < 0) return false;
+        retreatFromX = px;
+        retreatFromY = py;
+        retreatAnimT = 0f;
+        retreatAnimActive = true;
+        player.setPosition(bestX, bestY);
+        spawnBurst(tileCenterX(px), tileCenterY(py), 12, 1f, .32f, .25f, 48f);
+        spawnBurst(tileCenterX(bestX), tileCenterY(bestY), 10, .35f, .8f, 1f, 38f);
+        spawnFloat("FORCED RETREAT", tileCenterX(bestX), tileCenterY(bestY) + 30f, .45f, .8f, 1f);
+        startShake(.16f, 4f);
+        return true;
+    }
+
     private boolean enemyCapturedPlayer(Enemy e) {
         return e.getX() == player.getX() && e.getY() == player.getY();
     }
@@ -6092,8 +6625,8 @@ public class Main extends Game {
         }
         victorySound.play();
         for (int i = 0; i < 10; i++) {
-            float bx = Player.getBoardX() + random.nextFloat() * Player.TILE_SIZE * Player.BOARD_SIZE;
-            float by = Player.getBoardY() + random.nextFloat() * Player.TILE_SIZE * Player.BOARD_SIZE;
+            float bx = Player.getBoardX() + random.nextFloat() * Player.getTileSize() * Player.BOARD_SIZE;
+            float by = Player.getBoardY() + random.nextFloat() * Player.getTileSize() * Player.BOARD_SIZE;
             spawnBurst(bx, by, 10, MathUtils.random(.5f, 1f), MathUtils.random(.5f, 1f), MathUtils.random(.3f, 1f), 120f);
         }
         showPopup(finalBossDefeated
@@ -6156,6 +6689,10 @@ public class Main extends Game {
 
     private void generateNextRoom() {
         difficulty++;
+        resetTacticalMark();
+        kingEnchantments.beginRoom();
+        if (kingEnchantments.has(KingEnchantmentSystem.Enchantment.WARDING_SIGIL))
+            defense = Math.min(MAX_DEFENSE, defense + 1);
         if (blitzMode && blitzManager != null) blitzManager.resetRoom();
         rollPoison();
         for (int i = 0; i < enemies.size; i++) enemies.get(i).dispose();
@@ -6503,11 +7040,16 @@ public class Main extends Game {
         if (player != null) player.dispose();
         player = new Player(3, 3);
         player.setCorruption(corruption);
+        kingEnchantments.resetRun();
+        kingEnchantmentScreen.hide();
+        resetTacticalMark();
         resetPlayerStats();
         buildStartingHand();
         if (enemies != null) for (int i = 0; i < enemies.size; i++) enemies.get(i).dispose();
         rollPoison();
         generateEnemiesForCurrentRoom();
+        kingEnchantments.beginRoom();
+        kingEnchantmentScreen.show();
         rewardScreen.hide();
         gameOverScreen.hide();
         shopScreen.hide();
@@ -6622,7 +7164,7 @@ public class Main extends Game {
     private void handleArrowInput() {
         if (!Gdx.input.justTouched()) return;
         float x = Gdx.input.getX(), y = Gdx.graphics.getHeight() - Gdx.input.getY();
-        int tx = (int) ((x - Player.getBoardX()) / Player.TILE_SIZE), ty = (int) ((y - Player.getBoardY()) / Player.TILE_SIZE);
+        int tx = (int) ((x - Player.getBoardX()) / Player.getTileSize()), ty = (int) ((y - Player.getBoardY()) / Player.getTileSize());
         if (!player.isValidArrowTarget(tx, ty)) {
             message("Invalid arrow direction!", 1.5f);
             return;
@@ -6844,8 +7386,8 @@ public class Main extends Game {
         // Place next to the enemy (flip to the left if it would leave the screen)
         float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
         float ex = tileCenterX(e.getX()), ey = tileCenterY(e.getY());
-        float bx = ex + Player.TILE_SIZE / 2f + 8f;
-        if (bx + boxW > w - 6f) bx = ex - Player.TILE_SIZE / 2f - 8f - boxW;
+        float bx = ex + Player.getTileSize() / 2f + 8f;
+        if (bx + boxW > w - 6f) bx = ex - Player.getTileSize() / 2f - 8f - boxW;
         bx = MathUtils.clamp(bx, 6f, Math.max(6f, w - boxW - 6f));
         float by = MathUtils.clamp(ey - boxH / 2f, 6f, Math.max(6f, h - boxH - 6f));
 
@@ -6909,42 +7451,252 @@ public class Main extends Game {
         popupColor.set(r, g, b, 1f);
     }
 
+    private void resetTacticalMark() {
+        placingTacticalMark = false;
+        tacticalMarkAvailable = true;
+        tacticalMarkArmed = false;
+        tacticalMarkX = tacticalMarkY = -1;
+        tacticalMarkTarget = null;
+        royalGuardAvailable = true;
+        royalGuardArmed = false;
+    }
+
+    private void layoutInventoryTabButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        inventoryTabButton.set(w - 118f, h - 58f, 106f, 42f);
+    }
+
+    private void renderInventoryTabButton() {
+        if (menuVisible || gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible || blitzMode) return;
+        layoutInventoryTabButton();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(inventoryOpen ? .20f : .055f, inventoryOpen ? .25f : .075f, inventoryOpen ? .31f : .12f, .98f);
+        shapeRenderer.rect(inventoryTabButton.x, inventoryTabButton.y, inventoryTabButton.width, inventoryTabButton.height);
+        shapeRenderer.setColor(.95f, .78f, .34f, 1f);
+        shapeRenderer.rect(inventoryTabButton.x, inventoryTabButton.y + inventoryTabButton.height - 3f, inventoryTabButton.width, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.43f);
+        font.setColor(new Color(.98f, .86f, .57f, 1f));
+        font.draw(batch, inventoryOpen ? "CLOSE  [I]" : "INVENTORY  [I]", inventoryTabButton.x + 8f, inventoryTabButton.y + 25f);
+        font.getData().setScale(1f); font.setColor(Color.WHITE); batch.end();
+    }
+
+    private void renderInventoryTabFrame() {
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible() || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        float panelW = Math.min(w - 20f, h > w ? w - 12f : 350f);
+        float panelH = Math.min(h - 100f, h > w ? 470f : 500f);
+        float x = (w - panelW) * .5f, y = (h - panelH) * .5f;
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0f, 0f, 0f, .58f); shapeRenderer.rect(0f, 0f, w, h);
+        shapeRenderer.setColor(.035f, .045f, .068f, .98f); shapeRenderer.rect(x, y, panelW, panelH);
+        shapeRenderer.setColor(.88f, .68f, .29f, 1f); shapeRenderer.rect(x, y + panelH - 3f, panelW, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.72f); font.setColor(new Color(.98f, .82f, .42f, 1f));
+        font.draw(batch, "FIELD INVENTORY", x + 16f, y + panelH - 22f);
+        font.getData().setScale(.34f); font.setColor(new Color(.68f, .74f, .84f, 1f));
+        font.draw(batch, "TACTICS  •  OATH  •  SPELLS  •  CORRUPTION", x + 16f, y + panelH - 43f);
+        font.getData().setScale(.38f); font.setColor(Color.WHITE);
+        font.draw(batch, "SPELLS & ACTIONS", x + 16f, y + panelH - 66f);
+        font.draw(batch, "RUN POWERS", x + 16f, y + 174f);
+        font.draw(batch, "KING'S OATHS  " + kingEnchantments.getActiveEnchantments().size() + " ACTIVE", x + 16f, y + 150f);
+        font.draw(batch, "TACTICAL MARK  " + (tacticalMarkAvailable ? "READY" : "SPENT"), x + 16f, y + 126f);
+        font.draw(batch, "ROYAL GUARD  " + (royalGuardAvailable ? "READY" : "SPENT"), x + 16f, y + 104f);
+        font.draw(batch, "CORRUPTION  " + corruption.getLevel() + "%  —  " + corruption.getStatusText(), x + 16f, y + 82f);
+        font.getData().setScale(.30f); font.setColor(new Color(.62f, .68f, .78f, 1f));
+        font.draw(batch, "Press I or tap CLOSE to return to the board", x + 16f, y + 18f);
+        font.getData().setScale(1f); font.setColor(Color.WHITE); batch.end();
+    }
+
+    private void layoutRoyalGuardButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        float panelW = Math.min(w - 20f, h > w ? w - 12f : 350f);
+        float x = (w - panelW) * .5f, y = (h - Math.min(h - 100f, h > w ? 470f : 500f)) * .5f;
+        royalGuardButton.set(x + 12f, y + 48f, panelW - 24f, 34f);
+    }
+
+    private void renderRoyalGuardButton() {
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible()
+            || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        layoutRoyalGuardButton();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(royalGuardArmed ? .12f : .055f, royalGuardArmed ? .22f : .065f,
+            royalGuardArmed ? .28f : .10f, .96f);
+        shapeRenderer.rect(royalGuardButton.x, royalGuardButton.y, royalGuardButton.width, royalGuardButton.height);
+        shapeRenderer.setColor(royalGuardAvailable ? .35f : .30f, royalGuardAvailable ? .82f : .35f,
+            royalGuardAvailable ? 1f : .38f, 1f);
+        shapeRenderer.rect(royalGuardButton.x, royalGuardButton.y + royalGuardButton.height - 3f,
+            royalGuardButton.width, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.46f);
+        font.setColor(royalGuardArmed ? new Color(.55f, .88f, 1f, 1f)
+            : royalGuardAvailable ? new Color(.58f, .84f, 1f, 1f) : Color.GRAY);
+        String label = royalGuardArmed ? "ROYAL GUARD  ARMED" :
+            royalGuardAvailable ? "ROYAL GUARD  1/ROOM" : "GUARD SPENT";
+        font.draw(batch, label, royalGuardButton.x + 10f, royalGuardButton.y + 24f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
+    private void layoutTacticalMarkButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        float panelW = Math.min(w - 20f, h > w ? w - 12f : 350f);
+        float x = (w - panelW) * .5f, y = (h - Math.min(h - 100f, h > w ? 470f : 500f)) * .5f;
+        tacticalMarkButton.set(x + 12f, y + 88f, panelW - 24f, 34f);
+    }
+
+    private void renderTacticalMarkButton() {
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible()
+            || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        layoutTacticalMarkButton();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(placingTacticalMark ? .30f : .055f, placingTacticalMark ? .22f : .065f,
+            placingTacticalMark ? .08f : .10f, .96f);
+        shapeRenderer.rect(tacticalMarkButton.x, tacticalMarkButton.y, tacticalMarkButton.width, tacticalMarkButton.height);
+        shapeRenderer.setColor(tacticalMarkAvailable ? 1f : .35f, tacticalMarkAvailable ? .68f : .35f,
+            tacticalMarkAvailable ? .22f : .38f, 1f);
+        shapeRenderer.rect(tacticalMarkButton.x, tacticalMarkButton.y + tacticalMarkButton.height - 3f,
+            tacticalMarkButton.width, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.46f);
+        font.setColor(tacticalMarkAvailable ? new Color(1f, .78f, .38f, 1f) : Color.GRAY);
+        String label = placingTacticalMark ? "SELECT A TILE..." : tacticalMarkAvailable ? "TACTICAL MARK  1/ROOM" : "MARK SPENT";
+        font.draw(batch, label, tacticalMarkButton.x + 10f, tacticalMarkButton.y + 24f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
+    private void layoutEnchantmentButton() {
+        float w = Gdx.graphics.getWidth(), h = Gdx.graphics.getHeight();
+        float panelW = Math.min(w - 20f, h > w ? w - 12f : 350f);
+        float x = (w - panelW) * .5f, y = (h - Math.min(h - 100f, h > w ? 470f : 500f)) * .5f;
+        enchantmentsButton.set(x + 12f, y + 128f, panelW - 24f, 34f);
+    }
+
+    private void renderEnchantmentButton() {
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible()
+            || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
+        layoutEnchantmentButton();
+        boolean chosen = !kingEnchantments.getActiveEnchantments().isEmpty();
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(.055f, .065f, .10f, .94f);
+        shapeRenderer.rect(enchantmentsButton.x, enchantmentsButton.y, enchantmentsButton.width, enchantmentsButton.height);
+        shapeRenderer.setColor(chosen ? .35f : .95f, chosen ? .82f : .68f, chosen ? .45f : .25f, 1f);
+        shapeRenderer.rect(enchantmentsButton.x, enchantmentsButton.y + enchantmentsButton.height - 3f, enchantmentsButton.width, 3f);
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.46f);
+        font.setColor(chosen ? new Color(.55f, 1f, .65f, 1f) : new Color(1f, .82f, .38f, 1f));
+        font.draw(batch, chosen ? "KING'S OATH  ✓" : "CHOOSE KING'S OATH",
+            enchantmentsButton.x + 10f, enchantmentsButton.y + 24f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
+    private void applyKingEnchantment(KingEnchantmentSystem.Enchantment enchantment) {
+        if (!kingEnchantments.enchant(enchantment)) return;
+        switch (enchantment) {
+            case IRON_CROWN:
+                playerMaxHp++;
+                playerHp = Math.min(playerMaxHp, playerHp + 1);
+                break;
+            case WARDING_SIGIL:
+                defense = Math.min(MAX_DEFENSE, defense + 1);
+                break;
+            case ARCANE_HEART:
+                mana = Math.min(getMaxMana(), mana + 1);
+                break;
+            default:
+                break;
+        }
+        playSfx(blessingSound);
+        message(enchantment.getDisplayName() + " bound to the King.", 2.2f);
+        autosave();
+    }
+
+    private void renderEnemyIntents() {
+        if (menuVisible || kingEnchantmentScreen.isVisible() || rewardScreen.isVisible()
+            || shopScreen.isVisible() || evtVisible || (enemyTurnActive && enemyIntentDelay <= 0f) || moveAnimActive) return;
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if (!e.isAlive() || e.isFalling() || e.isMoving()) continue;
+            int aimX = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkX : player.getX();
+            int aimY = tacticalMarkArmed && e == tacticalMarkTarget ? tacticalMarkY : player.getY();
+            int[] target = e.previewMoveTowards(aimX, aimY, enemies);
+            if (target == null) continue;
+            float sx = tileCenterX(e.getX()), sy = tileCenterY(e.getY());
+            float tx = tileCenterX(target[0]), ty = tileCenterY(target[1]);
+            shapeRenderer.setColor(1f, .68f, .22f, .55f);
+            shapeRenderer.rectLine(sx, sy, tx, ty, 3f);
+            shapeRenderer.circle(tx, ty, Player.getTileSize() * .13f, 18);
+            shapeRenderer.setColor(1f, .88f, .48f, .9f);
+            shapeRenderer.circle(tx, ty, Player.getTileSize() * .07f, 18);
+        }
+        if (tacticalMarkArmed) {
+            shapeRenderer.setColor(1f, .72f, .22f, .9f);
+            shapeRenderer.circle(tileCenterX(tacticalMarkX), tileCenterY(tacticalMarkY),
+                Player.getTileSize() * .34f, 28);
+        }
+        shapeRenderer.end();
+        batch.begin();
+        font.getData().setScale(.34f);
+        font.setColor(1f, .78f, .35f, .9f);
+        font.draw(batch, placingTacticalMark ? "TACTICAL MARK: CHOOSE AN EMPTY TILE" : "GOLD = ENEMY'S NEXT MOVE", Gdx.graphics.getWidth() * .5f - 90f,
+            Gdx.graphics.getHeight() - 18f);
+        font.getData().setScale(1f);
+        font.setColor(Color.WHITE);
+        batch.end();
+    }
+
     private void renderCorruptionHud() {
-        if (blitzMode || menuVisible || gameOverScreen.isVisible()
+        if (!inventoryOpen || blitzMode || menuVisible || gameOverScreen.isVisible()
             || shopScreen.isVisible() || rewardScreen.isVisible() || evtVisible) return;
 
         float screenW = Gdx.graphics.getWidth();
         float screenH = Gdx.graphics.getHeight();
-        float w = Math.min(260f, Math.max(190f, screenW * 0.22f));
-        float x = 18f;
-        float objectiveH = omen == OMEN_NONE ? 92f : 132f;
-        float objectiveY = screenH - 150f - objectiveH;
-        // Keep the corruption strip directly beneath the objective panel and inside
-        // the visible play area even on short laptop/mobile windows.
-        float panelH = 42f;
-        float y = MathUtils.clamp(objectiveY - 28f, panelH + 8f, screenH - 12f);
-        float barH = 10f;
+        // A compact top-right HUD chip: health/objectives own the left column,
+        // the board owns the centre, and the card hand stays at the bottom-right.
+        float w = Math.min(310f, screenW - 44f);
+        float panelH = 54f;
+        float x = (screenW - w) * .5f;
+        float panelW = Math.min(screenW - 20f, screenH > screenW ? screenW - 12f : 350f);
+        float panelY = (screenH - Math.min(screenH - 100f, screenH > screenW ? 470f : 500f)) * .5f;
+        float y = panelY + 360f;
+        float barH = 8f;
         float p = MathUtils.clamp(corruption.getProgress(), 0f, 1f);
 
-        // Corruption lives directly below the objective panel as one quiet status strip.
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(.055f, .04f, .08f, .94f);
-        shapeRenderer.rect(x, y - panelH / 2f, w, panelH);
-        shapeRenderer.setColor(.42f, .18f, .52f, 1f);
-        shapeRenderer.rect(x, y + panelH / 2f - 2f, w, 2f);
-        shapeRenderer.setColor(.10f, .07f, .14f, .95f);
-        shapeRenderer.rect(x + 8f, y - 7f, w - 16f, barH);
-        shapeRenderer.setColor(.72f, .20f, .92f, 1f);
-        shapeRenderer.rect(x + 8f, y - 7f, (w - 16f) * p, barH);
+        shapeRenderer.setColor(0f, 0f, 0f, .32f);
+        shapeRenderer.rect(x + 3f, y - 3f, w, panelH);
+        shapeRenderer.setColor(.045f, .035f, .065f, .94f);
+        shapeRenderer.rect(x, y, w, panelH);
+        shapeRenderer.setColor(.55f, .22f, .72f, .95f);
+        shapeRenderer.rect(x, y + panelH - 2f, w, 2f);
+        shapeRenderer.setColor(.12f, .08f, .16f, 1f);
+        shapeRenderer.rect(x + 10f, y + 10f, w - 20f, barH);
+        if (p > 0f) {
+            shapeRenderer.setColor(.72f, .24f, .94f, 1f);
+            shapeRenderer.rect(x + 10f, y + 10f, (w - 20f) * p, barH);
+        }
         shapeRenderer.end();
 
         batch.begin();
-        font.getData().setScale(.42f);
-        font.setColor(new Color(.82f, .42f, 1f, 1f));
-        font.draw(batch, "CORRUPTION  " + corruption.getLevel() + "%", x + 8f, y + 12f);
-        font.getData().setScale(.31f);
-        font.setColor(new Color(.82f, .80f, .90f, 1f));
-        font.draw(batch, corruption.getStatusText(), x + 8f, y - 14f);
+        font.getData().setScale(.43f);
+        font.setColor(new Color(.86f, .58f, 1f, 1f));
+        font.draw(batch, "CORRUPTION", x + 10f, y + 42f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, corruption.getLevel() + "%", x + w - 48f, y + 42f);
+        font.getData().setScale(.30f);
+        font.setColor(new Color(.80f, .76f, .86f, 1f));
+        font.draw(batch, corruption.getStatusText(), x + 10f, y + 5f);
         font.getData().setScale(1f);
         font.setColor(Color.WHITE);
         batch.end();
@@ -7019,6 +7771,11 @@ public class Main extends Game {
         }
 
         for (Card c : hand) c.update(delta);
+        for (int i = flyingCards.size - 1; i >= 0; i--) {
+            Card f = flyingCards.get(i);
+            f.update(delta);
+            if (f.isFlightDone()) flyingCards.removeIndex(i);
+        }
         if (!gameOverScreen.isVisible() && !shopScreen.isVisible() && !blitzRelicShop.isVisible()) updateCardHover();
         checkEnemyLandings();
         handleInput();
@@ -7038,21 +7795,43 @@ public class Main extends Game {
         updateMoveAnim(delta);
         updatePendingArrivals();
         updateEnemyTurnSequence();
+        updateRetreatAnim(delta);
         updateShockwaves(delta);
         updateDebris(delta);
         updateSpellFx(delta);
         updateFloats(delta);
         updateSlashes(delta);
+        gameBackdrop.update(delta);
+        gameBackdrop.drawBackground(batch, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         board.render();
+        float boardPx = Player.BOARD_SIZE * Player.getTileSize();
+        gameBackdrop.drawBoardFrame(batch, Player.getBoardX(), Player.getBoardY(), boardPx);
+        if (Gdx.graphics.getHeight() > Gdx.graphics.getWidth()) {
+            // Portrait phone: the hand is a bottom dock, not a narrow side panel.
+            gameBackdrop.drawHandPanel(batch, 6f, 5f, Gdx.graphics.getWidth() - 12f, 116f);
+        } // Landscape: cards render directly over the arena; remove the redundant side panel.
+        gameBackdrop.drawHudBar(batch, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+
         renderPoisonTiles();
+        renderEnemyIntents();
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (int i = 0; i < enemies.size; i++) enemies.get(i).renderShadow(shapeRenderer);
         if (activeCard != null && player.isSelected()) player.renderLegalMoves(shapeRenderer, activeCard, board);
         if (shootMode) player.renderArrowRange(shapeRenderer);
         shapeRenderer.end();
         batch.begin();
-        for (Card c : hand) c.drawShape(batch);
-        for (int i = 0; i < enemies.size; i++) enemies.get(i).render(batch);
+        for (int i = visibleHandStart(); i < visibleHandEnd(); i++) {
+            hand.get(i).drawShape(batch);
+        }
+        for (int i = 0; i < flyingCards.size; i++) {
+            flyingCards.get(i).drawShape(batch);
+        }
+        for (int i = 0; i < enemies.size; i++) {
+            Enemy e = enemies.get(i);
+            if ((moveAnimActive || !e.isAlive())
+                && e.getX() == player.getX() && e.getY() == player.getY()) continue;
+            e.render(batch);
+        }
         beginPlayerAnim();
         if (invisibleTurns > 0) batch.setColor(1f, 1f, 1f, 0.35f + 0.1f * MathUtils.sin(uiTime * 4f));
         player.render(batch);
@@ -7065,7 +7844,21 @@ public class Main extends Game {
             batch.draw(arrowTexture, x - ARROW_DRAW_WIDTH, y - ARROW_DRAW_HEIGHT, ARROW_DRAW_WIDTH, ARROW_DRAW_HEIGHT, ARROW_DRAW_WIDTH, ARROW_DRAW_HEIGHT, 2f, 2f, angle, 0, 0, arrowTexture.getWidth(), arrowTexture.getHeight(), false, false);
             batch.setColor(Color.WHITE);
         }
-        for (Card c : hand) c.drawText(batch, font);
+        // Card-face artwork already contains its visual identity; do not overlay text.
+        if (hand.size > VISIBLE_HAND_CARDS) {
+            font.getData().setScale(.55f);
+            font.setColor(.88f, .92f, 1f, 1f);
+            String pageLabel = (handPageIndex + 1) + "/" +
+                ((hand.size + VISIBLE_HAND_CARDS - 1) / VISIBLE_HAND_CARDS);
+            font.draw(batch, pageLabel, handCycleButton.x + 5f, handCycleButton.y + handCycleButton.height + 13f);
+            batch.setColor(Color.WHITE);
+            batch.draw(menuButtonTexture, handCycleButton.x, handCycleButton.y,
+                handCycleButton.width, handCycleButton.height);
+            font.setColor(Color.WHITE);
+            font.getData().setScale(.8f);
+            font.draw(batch, ">", handCycleButton.x + handCycleButton.width * .34f,
+                handCycleButton.y + handCycleButton.height * .64f);
+        }
         font.getData().setScale(1f);
         font.setColor(new Color(.3f, .8f, 1f, 1f));
         font.draw(batch, eventMessage, 20, Gdx.graphics.getHeight() - 20);
@@ -7084,9 +7877,15 @@ public class Main extends Game {
         renderObjectivePanel();
         renderBlitzHud();
         renderBlitzComboText();
+        renderInventoryTabFrame();
         renderUiButtons();
         renderTooltip();
         renderCorruptionHud();
+        renderEnchantmentButton();
+        renderTacticalMarkButton();
+        renderRoyalGuardButton();
+        renderInventoryTabButton();
+        kingEnchantmentScreen.render(batch, shapeRenderer, font, kingEnchantments);
         rewardScreen.render(hand);
         if (shopScreen.isVisible()) shopScreen.render(gold);
         if (blitzRelicShop.isVisible()) blitzRelicShop.render(gold, blitzManager);
@@ -7137,10 +7936,10 @@ public class Main extends Game {
             "Bishop - diagonal hunter",
             "Rook - straight-line hunter",
             "Jester - pattern movement",
-            "Mad Rook - unpredictable movement",
-            "Chameleon - changes movement",
+            "Mad Rook - horizontal / vertical / diagonal cycle",
+            "Chameleon - Knight / Bishop / Rook cycle",
             "Armored - +1 HP, resists damage",
-            "Phantom - changes movement each turn",
+            "Phantom - visible Knight / Bishop / Rook cycle",
             "Berserker - moves twice when wounded",
             "Plaguebearer - leaves a toxic tile",
             "FLOOR 5 BOSS - 12 HP, moves twice"
@@ -7183,6 +7982,7 @@ public class Main extends Game {
     public void dispose() {
         if (batch != null) batch.dispose();
         if (shapeRenderer != null) shapeRenderer.dispose();
+        if (roguelikeBackdrop != null) roguelikeBackdrop.dispose();
         if (font != null) font.dispose();
         if (board != null) board.dispose();
         if (player != null) player.dispose();
@@ -7211,6 +8011,7 @@ public class Main extends Game {
         for (Texture t : iconTex.values()) t.dispose();
         for (int i = 0; i < extraSfx.size; i++) extraSfx.get(i).dispose();
         Card.disposeTextures();
+        if (gameBackdrop != null) gameBackdrop.dispose();
     }
 
     // Crumble debris (enemy pieces breaking apart)

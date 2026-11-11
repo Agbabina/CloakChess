@@ -1,10 +1,7 @@
 package io.github.chesslike.game;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.audio.Sound;
@@ -31,6 +28,7 @@ public class Card {
         CLAUDE,
         SHIFTER,
         LEAPER,
+        HUNTER,
     }
 
     // Forms the Shifter card can take
@@ -52,47 +50,19 @@ public class Card {
     // CARD SIZE
     // =========================================================
 
-    private static final float WIDTH = 115f;
-    private static final float HEIGHT = 155f;
+    public static final float WIDTH = 115f;
+    public static final float HEIGHT = 155f;
 
     // =========================================================
-    // CARD TEXTURES
+    // SOUNDS (drawing and textures live in CardView)
     // =========================================================
-
-    private static Texture frameStandard;
-    private static Texture frameAugmented;
-    // Optional per-augment artwork. Missing files are safely skipped so builds still run.
-    private static final ObjectMap<AugmentType, Texture> augmentIcons = new ObjectMap<>();
 
     private static Sound selectSound;
     private static Sound hoverSound;
 
     public static void loadTextures() {
 
-        if (frameStandard == null) {
-            frameStandard = new Texture(Gdx.files.internal("card_frame_standard.png"));
-            frameStandard.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-        }
-
-        if (frameAugmented == null) {
-            frameAugmented = new Texture(Gdx.files.internal("card_frame_augmented.png"));
-            frameAugmented.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-        }
-
-        // Icons live beside the card frames: icon_augment_soul_eater.png, etc.
-        for (AugmentType type : AugmentType.values()) {
-            if (augmentIcons.containsKey(type)) continue;
-            String file = "icon_augment_" + type.name().toLowerCase(java.util.Locale.ROOT) + ".png";
-            try {
-                if (Gdx.files.internal(file).exists()) {
-                    Texture icon = new Texture(Gdx.files.internal(file));
-                    icon.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-                    augmentIcons.put(type, icon);
-                }
-            } catch (Exception ignored) {
-                // Artwork is optional; the augment name remains visible in the card text.
-            }
-        }
+        CardView.loadTextures();
 
         if (selectSound == null) {
             selectSound = Gdx.audio.newSound(Gdx.files.internal("freesound_community-flipcard-91468.mp3"));
@@ -105,18 +75,7 @@ public class Card {
 
     public static void disposeTextures() {
 
-        if (frameStandard != null) {
-            frameStandard.dispose();
-            frameStandard = null;
-        }
-
-        if (frameAugmented != null) {
-            frameAugmented.dispose();
-            frameAugmented = null;
-        }
-
-        for (Texture icon : augmentIcons.values()) icon.dispose();
-        augmentIcons.clear();
+        CardView.disposeTextures();
 
         if (selectSound != null) {
             selectSound.dispose();
@@ -162,6 +121,8 @@ public class Card {
 
     // Drives the pulsing glow on the Claude / Shifter cards
     private float pulseTime = 0f;
+    private float enchantBindTimer = -1f;
+    private static final float ENCHANT_BIND_DURATION = 0.92f;
 
     private static final float HOVER_LIFT = 14f;
     private static final float SELECTED_LIFT = 24f;
@@ -173,6 +134,42 @@ public class Card {
 
     private boolean hovered;
     private boolean selected;
+
+    // =========================================================
+    // BALATRO-STYLE MOTION
+    // =========================================================
+
+    private static final float ROT_STIFFNESS = 260f;
+    private static final float ROT_DAMPING = 8f;
+    private static final float HOVER_TILT_MAX = 8f;     // degrees, follows the pointer
+    private static final float SELECTED_SLANT = 10f;    // degrees, counter-clockwise
+    private static final float IDLE_SWAY = 1.2f;        // degrees
+    private static final float FLY_SLANT = 35f;         // matches the slanted card sketch
+    private static final float FLY_TIME = 0.5f;
+    private static final float SHAKE_DURATION = 0.35f;
+    private static final float POP_STIFFNESS = 300f;
+    private static final float POP_DAMPING = 10f;
+    private static final float POP_KICK = 2.2f;
+
+    private float rotation = 0f;
+    private float rotationVel = 0f;
+    private float mouseOffsetX = 0f;                    // -1..1 while hovered
+
+    private float flipT = 0f;                           // 0 = front, 1 = back
+    private float flipTarget = 0f;
+
+    private float shakeTime = 0f;
+    private float shakeOffset = 0f;
+
+    private float popScale = 0f;
+    private float popVel = 0f;
+
+    private boolean flying = false;
+    private float flyX;
+    private float flyY;
+    private float flyTimer = 0f;
+
+    private final float idlePhase = MathUtils.random(MathUtils.PI2);
 
     // =========================================================
     // USES
@@ -273,6 +270,9 @@ public class Card {
             case LEAPER:
                 return new LeaperRules();
 
+            case HUNTER:
+                return new HunterRules();
+
             default:
                 throw new IllegalArgumentException("Unsupported movement type: " + type);
         }
@@ -356,7 +356,7 @@ public class Card {
         return usesRemaining <= 0;
     }
 
-    private boolean isClaude() {
+    boolean isClaude() {
         return movementType == MovementType.CLAUDE;
     }
 
@@ -405,6 +405,8 @@ public class Card {
         selected = false;
         hovered = false;
         dragging = false;
+
+        popVel += POP_KICK;
 
         if (selectSound != null) {
             selectSound.play(0.8f, 1.2f, 0f);
@@ -463,15 +465,18 @@ public class Card {
     // AUGMENTS
     // =========================================================
 
-    // Switches on the augment type NAME, so this compiles even before the new
-    // constants exist in Augment.Type. Add FURY, MANA_SURGE, VAMPIRIC, GILDED,
-    // AEGIS, VENOM and ECHO to that enum to make them usable.
+    // Apply each augment's gameplay effect and retain its type for rendering and saves.
     public void applyAugment(Augment augment) {
 
         if (augment == null) {
             return;
         }
-        augments.add(augment.getType());
+        // Trigger a one-shot binding animation only when this augment is newly added.
+        if (augments.add(augment.getType())) {
+            enchantBindTimer = 0f;
+            popVel += 0.9f;
+            shakeTime = SHAKE_DURATION;
+        }
 
         switch (augment.getType().name()) {
 
@@ -584,6 +589,10 @@ public class Card {
         return type != null && augments.contains(type);
     }
 
+    java.util.EnumSet<AugmentType> getAugments() {
+        return augments;
+    }
+
     public void consumeBurn() {
         hasBurn = false;
     }
@@ -641,16 +650,7 @@ public class Card {
                     default: break;
                 }
             } catch (IllegalArgumentException ignored) {
-            }
-            switch (part.trim()) {
-                case "FURY": hasFury = true; break;
-                case "MANA_SURGE": hasManaSurge = true; break;
-                case "VAMPIRIC": hasVampiric = true; break;
-                case "GILDED": hasGilded = true; break;
-                case "AEGIS": hasAegis = true; break;
-                case "VENOM": hasVenom = true; break;
-                case "ECHO": hasEcho = true; break;
-                default: break;
+                // Ignore unknown codes so older or newer saves remain loadable.
             }
         }
     }
@@ -677,7 +677,7 @@ public class Card {
 
     public void setHovered(boolean hovered) {
 
-        if (isUsed() || dragging) {
+        if (isUsed() || dragging || flying) {
             this.hovered = false;
             return;
         }
@@ -697,16 +697,82 @@ public class Card {
         return selected;
     }
 
+    // ---- animation triggers ----
+
+    /** Call every frame while hovered: tilts the card toward the pointer. */
+    public void trackPointer(float pointerX) {
+        float half = WIDTH * getDrawScale() / 2f;
+        mouseOffsetX = half <= 0f ? 0f : MathUtils.clamp((pointerX - getCenterX()) / half, -1f, 1f);
+    }
+
+    /** Flip to the other face. */
+    public void flip() {
+        flipTarget = flipTarget == 0f ? 1f : 0f;
+    }
+
+    /** New card: starts face down and flips to the front. */
+    public void dealFlipIn() {
+        flipT = 1f;
+        flipTarget = 0f;
+    }
+
+    /** New card: starts at (startX, startY), slanted and small, and springs to its slot. */
+    public void dealFrom(float startX, float startY) {
+        animatedX = startX;
+        animatedY = startY;
+        initialized = true;
+        rotation = 25f;
+        rotationVel = 0f;
+        scale = layoutScale * 0.6f;
+    }
+
+    /** Invalid action: quick sideways wobble. */
+    public void shake() {
+        shakeTime = SHAKE_DURATION;
+        rotationVel += 140f;
+    }
+
+    /** Pop, then fly to (targetX, targetY) at the 35 degree slant while shrinking. */
+    public void popAndFly(float targetX, float targetY) {
+        popVel += POP_KICK;
+        flying = true;
+        flyTimer = 0f;
+        flyX = targetX;
+        flyY = targetY;
+        selected = false;
+        hovered = false;
+        dragging = false;
+    }
+
+    public boolean isFlying() {
+        return flying;
+    }
+
+    public boolean isFlightDone() {
+        return flying && flyTimer >= FLY_TIME;
+    }
+
     public void update(float delta) {
 
         pulseTime += delta;
+        if (enchantBindTimer >= 0f) {
+            enchantBindTimer += delta;
+            if (enchantBindTimer >= ENCHANT_BIND_DURATION) enchantBindTimer = -1f;
+        }
+        float dt = Math.min(delta, 1f / 30f);
 
         float targetX = screenX;
         float targetY = screenY;
 
+        if (flying) {
+            targetX = flyX;
+            targetY = flyY;
+            flyTimer += delta;
+        }
+
         // While dragging, do not add the normal selected lift
         // because the card is already following the pointer.
-        if (!dragging && !isUsed()) {
+        if (!dragging && !isUsed() && !flying) {
 
             if (selected) {
                 targetY += SELECTED_LIFT;
@@ -717,7 +783,10 @@ public class Card {
         }
 
         // SCALE
-        if (isUsed()) {
+        if (flying) {
+            targetScale = layoutScale * 0.25f;
+
+        } else if (isUsed()) {
             targetScale = layoutScale * 0.88f;
 
         } else if (dragging) {
@@ -734,7 +803,7 @@ public class Card {
         }
 
         // ANIMATION
-        float amount = Math.min(delta * ANIMATION_SPEED, 1f);
+        float amount = Math.min(delta * (flying ? 9f : ANIMATION_SPEED), 1f);
 
         // Don't interpolate the dragged card.
         // It should stay directly underneath the finger/mouse.
@@ -744,163 +813,103 @@ public class Card {
         }
 
         scale = MathUtils.lerp(scale, targetScale, amount);
+
+        // ROTATION (spring toward a target angle)
+        float rotTarget;
+        if (flying) {
+            rotTarget = FLY_SLANT;
+        } else if (hovered) {
+            rotTarget = -mouseOffsetX * HOVER_TILT_MAX;
+        } else if (selected || dragging) {
+            rotTarget = SELECTED_SLANT;
+        } else {
+            rotTarget = MathUtils.sin(pulseTime * 1.6f + idlePhase) * IDLE_SWAY;
+        }
+        rotationVel += (rotTarget - rotation) * ROT_STIFFNESS * dt;
+        rotationVel *= Math.max(0f, 1f - ROT_DAMPING * dt);
+        rotation += rotationVel * dt;
+
+        // POP (scale spring around 0)
+        popVel += (0f - popScale) * POP_STIFFNESS * dt;
+        popVel *= Math.max(0f, 1f - POP_DAMPING * dt);
+        popScale += popVel * dt;
+
+        // SHAKE
+        if (shakeTime > 0f) {
+            shakeTime = Math.max(0f, shakeTime - delta);
+            shakeOffset = MathUtils.sin(shakeTime * 60f) * 10f * (shakeTime / SHAKE_DURATION);
+        } else {
+            shakeOffset = 0f;
+        }
+
+        // FLIP
+        flipT = MathUtils.lerp(flipT, flipTarget, 1f - (float) Math.exp(-12f * delta));
+        if (Math.abs(flipT - flipTarget) < 0.002f) flipT = flipTarget;
+    }
+
+    // Values CardView needs to draw this card
+    float getDrawScale() {
+        return scale * (1f + popScale);
+    }
+
+    float getCenterX() {
+        return animatedX + WIDTH / 2f + shakeOffset;
+    }
+
+    float getCenterY() {
+        return animatedY + HEIGHT / 2f;
+    }
+
+    float getDrawX() {
+        return getCenterX() - WIDTH * getDrawScale() / 2f;
+    }
+
+    float getDrawY() {
+        return getCenterY() - HEIGHT * getDrawScale() / 2f;
+    }
+
+    float getRotation() {
+        return rotation;
+    }
+
+    float getFlipScaleX() {
+        return Math.abs(MathUtils.cos(MathUtils.PI * flipT));
+    }
+
+    boolean isShowingBack() {
+        return flipT > 0.5f;
+    }
+
+    float getPulseTime() {
+        return pulseTime;
+    }
+
+    boolean isEnchantmentBinding() {
+        return enchantBindTimer >= 0f;
+    }
+
+    float getEnchantmentBindProgress() {
+        return enchantBindTimer < 0f ? 1f
+            : MathUtils.clamp(enchantBindTimer / ENCHANT_BIND_DURATION, 0f, 1f);
     }
 
     // =========================================================
-    // DRAW METHODS
+    // DRAW METHODS (delegate to CardView)
     // =========================================================
 
     public void drawShape(SpriteBatch batch) {
-
-        if (batch == null || frameStandard == null || frameAugmented == null) {
-            return;
-        }
-
-        float scaledWidth = WIDTH * scale;
-        float scaledHeight = HEIGHT * scale;
-
-        float drawX = animatedX + (WIDTH - scaledWidth) / 2f;
-        float drawY = animatedY + (HEIGHT - scaledHeight) / 2f;
-
-        Texture frame = hasAnyAugment() ? frameAugmented : frameStandard;
-
-        if (isUsed()) {
-
-            batch.setColor(0.55f, 0.55f, 0.55f, 1f);
-
-        } else if (dragging) {
-
-            // Dragged card gets a bright highlight.
-            if (isClaude()) batch.setColor(1f, 0.72f, 0.30f, 1f);
-            else batch.setColor(1f, 0.90f, 0.55f, 1f);
-
-        } else if (selected) {
-
-            if (isClaude()) batch.setColor(1f, 0.70f, 0.28f, 1f);
-            else batch.setColor(1f, 0.85f, 0.55f, 1f);
-
-        } else if (hovered) {
-
-            if (isClaude()) batch.setColor(1f, 0.80f, 0.45f, 1f);
-            else batch.setColor(0.75f, 0.92f, 1f, 1f);
-
-        } else if (isClaude()) {
-
-            // Special orange tint with a slow pulse
-            float pulse = 0.5f + 0.5f * MathUtils.sin(pulseTime * 3f);
-            batch.setColor(1f, 0.58f + 0.12f * pulse, 0.22f + 0.08f * pulse, 1f);
-
-        } else if (isShifter()) {
-
-            // Purple tint that shimmers
-            float pulse = 0.5f + 0.5f * MathUtils.sin(pulseTime * 2.5f);
-            batch.setColor(0.70f + 0.25f * pulse, 0.55f, 1f, 1f);
-
-        } else if (hasFury && hasManaSurge) {
-
-            batch.setColor(0.85f, 0.65f, 1f, 1f);
-
-        } else if (hasFury) {
-
-            // Red tint: extra damage
-            batch.setColor(1f, 0.55f, 0.55f, 1f);
-
-        } else if (hasManaSurge) {
-
-            // Blue tint: mana
-            batch.setColor(0.55f, 0.72f, 1f, 1f);
-
-        } else {
-
-            batch.setColor(Color.WHITE);
-        }
-
-        batch.draw(frame, drawX, drawY, scaledWidth, scaledHeight);
-
-        batch.setColor(Color.WHITE);
+        CardView.drawFrame(this, batch);
     }
 
     public void drawText(SpriteBatch batch, BitmapFont font) {
-
-        if (batch == null || font == null) {
-            return;
-        }
-
-        float drawX = animatedX + (WIDTH - WIDTH * scale) / 2f;
-        float drawY = animatedY + (HEIGHT - HEIGHT * scale) / 2f;
-
-        // NAME
-        font.getData().setScale(1.00f * scale);
-
-        if (isUsed()) font.setColor(Color.GRAY);
-        else if (isClaude()) font.setColor(1f, 0.62f, 0.22f, 1f);
-        else if (isShifter()) font.setColor(0.82f, 0.65f, 1f, 1f);
-        else font.setColor(Color.WHITE);
-
-        font.draw(batch, name, drawX + 15f * scale, drawY + HEIGHT * scale - 18f * scale);
-
-        // USES
-        font.getData().setScale(0.68f * scale);
-
-        font.setColor(isUsed() ? Color.DARK_GRAY : new Color(1f, 0.80f, 0.30f, 1f));
-
-        String usesText = isUsed() ? "USED" : "USES: " + usesRemaining;
-
-        font.draw(batch, usesText, drawX + 15f * scale, drawY + HEIGHT * scale - 38f * scale);
-
-        // MOVEMENT TYPE
-        font.getData().setScale(0.78f * scale);
-
-        if (isUsed()) font.setColor(Color.DARK_GRAY);
-        else if (isClaude()) font.setColor(1f, 0.55f, 0.15f, 1f);
-        else if (isShifter()) font.setColor(0.75f, 0.50f, 1f, 1f);
-        else font.setColor(0.30f, 0.65f, 0.95f, 1f);
-
-        font.draw(batch, movementType.toString(), drawX + 20f * scale, drawY + 75f * scale);
-
-        // Augment icons form a compact, readable strip at the card's upper-right.
-        // Each icon is optional; text fallback keeps augments discoverable if artwork is absent.
-        float iconSize = 18f * scale;
-        float iconX = drawX + WIDTH * scale - iconSize - 9f * scale;
-        float iconY = drawY + HEIGHT * scale - 62f * scale;
-        int shown = 0;
-        for (AugmentType type : augments) {
-            if (shown >= 4) break;
-            Texture icon = augmentIcons.get(type);
-            if (icon != null) {
-                batch.setColor(Color.WHITE);
-                batch.draw(icon, iconX - shown * (iconSize + 2f * scale), iconY, iconSize, iconSize);
-            } else if (shown == 0) {
-                font.getData().setScale(0.38f * scale);
-                font.setColor(new Color(1f, .82f, .42f, 1f));
-                font.draw(batch, "AUG", drawX + WIDTH * scale - 32f * scale, drawY + HEIGHT * scale - 62f * scale);
-            }
-            shown++;
-        }
-        font.getData().setScale(0.78f * scale);
-
-        // ATTACK DAMAGE
-        font.getData().setScale(0.70f * scale);
-        font.setColor(isUsed() ? Color.DARK_GRAY : new Color(1f, 0.42f, 0.30f, 1f));
-        font.draw(batch, "DMG " + getAttackDamage(), drawX + 20f * scale, drawY + 55f * scale);
-
-        // DESCRIPTION
-        font.getData().setScale(0.72f * scale);
-
-        font.setColor(isUsed() ? Color.DARK_GRAY : new Color(0.70f, 0.75f, 0.82f, 1f));
-
-        font.draw(batch, getDescription(), drawX + 20f * scale, drawY + 30f * scale);
-
-        // Reset font.
-        font.getData().setScale(1f);
-        font.setColor(Color.WHITE);
+        CardView.drawText(this, batch, font);
     }
 
     // =========================================================
     // DESCRIPTION
     // =========================================================
 
-    private String getDescription() {
+    String getDescription() {
 
         switch (movementType) {
 
@@ -928,6 +937,9 @@ public class Card {
             case LEAPER:
                 return "Jump 2 tiles";
 
+            case HUNTER:
+                return "King step or knight jump";
+
             case SHIFTER:
                 return "Now: " + formLabel(currentForm);
 
@@ -937,24 +949,26 @@ public class Card {
     }
 
     // =========================================================
-    // CLICK / TOUCH DETECTION
+    // CLICK / TOUCH DETECTION (accounts for the card's tilt)
     // =========================================================
 
     public boolean isClicked(float touchX, float touchY) {
 
-        if (isUsed()) {
+        if (isUsed() || flying) {
             return false;
         }
 
-        float drawX = animatedX + (WIDTH - WIDTH * scale) / 2f;
-        float drawY = animatedY + (HEIGHT - HEIGHT * scale) / 2f;
+        float s = getDrawScale();
+        float dx = touchX - getCenterX();
+        float dy = touchY - getCenterY();
 
-        float drawWidth = WIDTH * scale;
-        float drawHeight = HEIGHT * scale;
+        float rad = -rotation * MathUtils.degreesToRadians;
+        float cos = MathUtils.cos(rad);
+        float sin = MathUtils.sin(rad);
+        float localX = dx * cos - dy * sin;
+        float localY = dx * sin + dy * cos;
 
-        return touchX >= drawX
-            && touchX <= drawX + drawWidth
-            && touchY >= drawY
-            && touchY <= drawY + drawHeight;
+        return Math.abs(localX) <= WIDTH * s / 2f
+            && Math.abs(localY) <= HEIGHT * s / 2f;
     }
 }
