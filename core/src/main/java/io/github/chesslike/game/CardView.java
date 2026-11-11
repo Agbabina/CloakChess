@@ -25,6 +25,7 @@ public final class CardView {
     private static final ObjectMap<AugmentType, Texture> augmentIcons = new ObjectMap<>();
     // Full illustrated 256x328 card faces. Missing variants fall back to the frame.
     private static final ObjectMap<Card.MovementType, TextureRegion> cardFaces = new ObjectMap<>();
+    private static final ObjectMap<Card.MovementType, TextureRegion> enchantedCardFaces = new ObjectMap<>();
 
     private static final Color USES_COLOR = new Color(1f, 0.80f, 0.30f, 1f);
     private static final Color DMG_COLOR = new Color(1f, 0.42f, 0.30f, 1f);
@@ -70,12 +71,26 @@ public final class CardView {
             Card.MovementType.SHIFTER, Card.MovementType.LEAPER, Card.MovementType.HUNTER
         };
         for (Card.MovementType type : faceTypes) {
-            if (cardFaces.containsKey(type)) continue;
-            String file = "card_face_" + type.name().toLowerCase(java.util.Locale.ROOT) + ".png";
-            if (Gdx.files.internal(file).exists()) {
-                Texture face = new Texture(Gdx.files.internal(file));
-                face.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-                cardFaces.put(type, new TextureRegion(face));
+            if (!cardFaces.containsKey(type)) {
+                String key = type.name().toLowerCase(java.util.Locale.ROOT);
+                // New illustrated special cards use card_<type>.png; legacy pieces keep card_face_<type>.png.
+                String[] candidates = {"card_" + key + ".png", "card_face_" + key + ".png"};
+                for (String file : candidates) {
+                    if (Gdx.files.internal(file).exists()) {
+                        Texture face = new Texture(Gdx.files.internal(file));
+                        face.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+                        cardFaces.put(type, new TextureRegion(face));
+                        break;
+                    }
+                }
+            }
+            if (!enchantedCardFaces.containsKey(type)) {
+                String file = "card_" + type.name().toLowerCase(java.util.Locale.ROOT) + "_enchanted.png";
+                if (Gdx.files.internal(file).exists()) {
+                    Texture face = new Texture(Gdx.files.internal(file));
+                    face.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+                    enchantedCardFaces.put(type, new TextureRegion(face));
+                }
             }
         }
 
@@ -153,6 +168,8 @@ public final class CardView {
         augmentIcons.clear();
         for (TextureRegion face : cardFaces.values()) face.getTexture().dispose();
         cardFaces.clear();
+        for (TextureRegion face : enchantedCardFaces.values()) face.getTexture().dispose();
+        enchantedCardFaces.clear();
     }
 
     // =========================================================
@@ -174,6 +191,7 @@ public final class CardView {
         float shade = 1f - 0.45f * (1f - sx);
 
         TextureRegion face = cardFaces.get(card.getMovementType());
+        TextureRegion enchantedFace = enchantedCardFaces.get(card.getMovementType());
         TextureRegion region;
         if (card.isShowingBack()) {
             region = backRegion != null ? backRegion : standardRegion;
@@ -182,7 +200,7 @@ public final class CardView {
         } else {
             // Keep the illustrated card face as the base artwork. The animated
             // enchantment sheet is drawn as a transparent frame overlay below.
-            region = face != null ? face : standardRegion;
+            region = card.hasAnyAugment() && enchantedFace != null ? enchantedFace : (face != null ? face : standardRegion);
             applyTint(card, batch);
             Color c = batch.getColor();
             batch.setColor(c.r * shade, c.g * shade, c.b * shade, c.a);
