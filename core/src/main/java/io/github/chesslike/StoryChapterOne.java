@@ -19,7 +19,6 @@ public final class StoryChapterOne {
     private static final int LAST_SCENE = 4;
     private final Rectangle[] choices = { new Rectangle(), new Rectangle() };
     private final Rectangle backButton = new Rectangle();
-    private final Rectangle continueButton = new Rectangle();
     private final GlyphLayout glyph = new GlyphLayout();
 
     private int scene;
@@ -113,8 +112,7 @@ public final class StoryChapterOne {
         float buttonY = y + 28f;
         choices[0].set(x + 28f, buttonY, buttonW, buttonH);
         choices[1].set(x + 28f + buttonW + buttonGap, buttonY, buttonW, buttonH);
-        backButton.set(x + 20f, y + panelH - 58f, 112f, 38f);
-        continueButton.set(x + panelW - 20f - 112f, y + 18f, 112f, 38f);
+        backButton.set(x + panelW - 132f, y + panelH - 58f, 112f, 38f);
     }
 
     public Action handleInput() {
@@ -163,6 +161,8 @@ public final class StoryChapterOne {
         shapes.rect(x, y + panelH - 4f, panelW, 4f);
         shapes.setColor(.16f, .28f, .22f, 1f);
         shapes.rect(x + 18f, y + 78f, panelW - 36f, 1f);
+        shapes.setColor(.13f, .16f, .13f, 1f);
+        shapes.rect(backButton.x, backButton.y, backButton.width, backButton.height);
         for (int i = 0; i < choices.length; i++) {
             shapes.setColor(i == 0 ? .22f : .12f, i == 0 ? .18f : .14f, .10f, 1f);
             shapes.rect(choices[i].x, choices[i].y, choices[i].width, choices[i].height);
@@ -180,6 +180,9 @@ public final class StoryChapterOne {
         font.getData().setScale(.48f);
         font.draw(batch, "A STORY OF GOLD, HUNGER, AND THE THINGS THAT FOLLOW US",
             x + 30f, y + panelH - 62f);
+        font.setColor(new Color(.72f, .74f, .68f, 1f));
+        font.getData().setScale(.48f);
+        font.draw(batch, "BACK", backButton.x + 34f, backButton.y + 24f);
 
         font.setColor(new Color(.86f, .85f, .78f, 1f));
         font.getData().setScale(.68f);
