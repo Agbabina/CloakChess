@@ -480,6 +480,9 @@ public class Main extends Game {
     private boolean bestiaryVisible = false;
     private boolean enemyDeckVisible = false;
     private final Rectangle startButton = new Rectangle();
+    private final Rectangle storyButton = new Rectangle();
+    private final StoryChapterOne storyChapterOne = new StoryChapterOne();
+    private boolean storyVisible = false;
     private final Rectangle bestiaryButton = new Rectangle();
     private final Rectangle blitzButton = new Rectangle();
     private final Rectangle backButton = new Rectangle();
@@ -4099,8 +4102,9 @@ public class Main extends Game {
         float gap = 18f;
         float x = (w - buttonW) / 2f;
 
-        float startY = hasAutosave() ? h * 0.55f : h * 0.48f;
+        float startY = hasAutosave() ? h * 0.49f : h * 0.43f;
         startButton.set(x, startY, buttonW, buttonH);
+        storyButton.set(x, startY + buttonH + gap, buttonW, buttonH);
 
         float lowestY;
         if (hasAutosave()) {
@@ -4119,7 +4123,7 @@ public class Main extends Game {
         float panelW = buttonW + panelPad * 2f;
         float logoW = panelW - 40f;
         float logoH = logoW * 220f / 960f;
-        float panelTop = startButton.y + buttonH + panelPad + logoH + 55f;
+        float panelTop = Math.min(h - 12f, storyButton.y + buttonH + panelPad + logoH + 55f);
         float panelBottom = lowestY - panelPad;
         menuPanel.set((w - panelW) / 2f, panelBottom, panelW, panelTop - panelBottom);
         menuLogo.set(menuPanel.x + 20f, panelTop - 25f - logoH, logoW, logoH);
@@ -4346,6 +4350,16 @@ public class Main extends Game {
         beginIntro(this::beginNewGame);
     }
 
+    private void startStoryFromMenu() {
+        storyVisible = false;
+        blitzMode = false;
+        beginIntro(() -> {
+            beginNewGame();
+            gold += storyChapterOne.getStartingGoldBonus();
+            message("CHAPTER I - THE KNOCK", 3f);
+        });
+    }
+
     private void beginNewGame() {
         clearAutosave();
         clearMoveAnim();
@@ -4413,6 +4427,12 @@ public class Main extends Game {
             handleTutorialInput();
             return;
         }
+        if (storyVisible) {
+            StoryChapterOne.Action action = storyChapterOne.handleInput();
+            if (action == StoryChapterOne.Action.BACK) storyVisible = false;
+            else if (action == StoryChapterOne.Action.START_RUN) startStoryFromMenu();
+            return;
+        }
         if (!Gdx.input.justTouched()) return;
 
         // Get the actual touch position.
@@ -4439,6 +4459,7 @@ public class Main extends Game {
         // Any menu button press reveals the CLOAKCHESS logo
         if (bestiaryVisible ? containsWithPadding(backButton, touchX, touchY, padding)
             : (containsWithPadding(startButton, touchX, touchY, padding)
+            || containsWithPadding(storyButton, touchX, touchY, padding)
             || (hasAutosave() && containsWithPadding(continueButton, touchX, touchY, padding))
             || containsWithPadding(bestiaryButton, touchX, touchY, padding)
             || containsWithPadding(blitzButton, touchX, touchY, padding))) {
@@ -4453,7 +4474,12 @@ public class Main extends Game {
             return;
         }
 
-        if (containsWithPadding(startButton, touchX, touchY, padding)) {
+        if (containsWithPadding(storyButton, touchX, touchY, padding)) {
+            clickSound.play();
+            storyChapterOne.reset();
+            storyVisible = true;
+
+        } else if (containsWithPadding(startButton, touchX, touchY, padding)) {
             clickSound.play();
             startGameFromMenu();
 
@@ -4562,6 +4588,10 @@ public class Main extends Game {
 
     private void renderMenu() {
 
+        if (storyVisible) {
+            storyChapterOne.render(batch, font, shapeRenderer);
+            return;
+        }
         if (upgradesVisible) {
             renderUpgrades();
             return;
@@ -4611,6 +4641,7 @@ public class Main extends Game {
 
         // Panel, then button plates
         batch.draw(menuPanelTexture, menuPanel.x, menuPanel.y, menuPanel.width, menuPanel.height);
+        batch.draw(menuButtonTexture, storyButton.x, storyButton.y, storyButton.width, storyButton.height);
         batch.draw(menuButtonTexture, startButton.x, startButton.y, startButton.width, startButton.height);
         if (hasAutosave())
             batch.draw(menuButtonTexture, continueButton.x, continueButton.y, continueButton.width, continueButton.height);
@@ -4633,6 +4664,7 @@ public class Main extends Game {
         font.draw(batch, subtitle, (w - subtitleWidth) / 2f, menuLogo.y - 8f);
 
         // Button labels
+        drawMenuLabel(batch, "STORY MODE", storyButton, new Color(1f, .82f, .42f, 1f));
         drawMenuLabel(batch, "START", startButton, Color.WHITE);
         if (hasAutosave()) drawMenuLabel(batch, "CONTINUE", continueButton, Color.WHITE);
         drawMenuLabel(batch, "BESTIARY", bestiaryButton, Color.WHITE);
