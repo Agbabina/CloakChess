@@ -483,7 +483,6 @@ public class Main extends Game {
     private final Rectangle storyButton = new Rectangle();
     private final StoryChapterOne storyChapterOne = new StoryChapterOne();
     private boolean storyVisible = false;
-    private boolean storyRun = false;
     private final Rectangle bestiaryButton = new Rectangle();
     private final Rectangle blitzButton = new Rectangle();
     private final Rectangle backButton = new Rectangle();
@@ -4353,7 +4352,6 @@ public class Main extends Game {
 
     private void startStoryFromMenu() {
         storyVisible = false;
-        storyRun = true;
         blitzMode = false;
         beginIntro(() -> {
             beginNewGame();
@@ -4483,7 +4481,6 @@ public class Main extends Game {
 
         } else if (containsWithPadding(startButton, touchX, touchY, padding)) {
             clickSound.play();
-            storyRun = false;
             startGameFromMenu();
 
         } else if (hasAutosave()
